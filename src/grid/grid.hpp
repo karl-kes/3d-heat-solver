@@ -6,20 +6,20 @@
 
 class Grid {
 private:
-    std::size_t nx_, ny_, nz_;
+  std::size_t nx_, ny_, nz_;
+  double inv_dx_sq, inv_dy_sq, inv_dz_sq;
 
-    AlignedSoA<double> cell_;
+  AlignedSoA<double> cell_;
 
 public:
-    // Uniform constructor:
-    Grid(std::size_t n = 10);
-
-    // Non-uniform constructor:
-    Grid(std::size_t x, std::size_t y, std::size_t z);
+  Grid(
+    std::size_t x, std::size_t y, std::size_t z,
+    double dx, double dy, double dz
+  );
 
 private:
-    [[nodiscard]]
-    std::size_t idx(std::size_t x, std::size_t y, std::size_t z) {
-        return x + nx_ * (y + ny_ * z);
-    }
+  [[nodiscard]]
+  std::size_t idx(std::size_t x, std::size_t y, std::size_t z) {
+    return x + nx_ * (y + ny_ * z);
+  }
 };
