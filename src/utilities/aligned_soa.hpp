@@ -49,7 +49,6 @@ public:
     return memory_block_.get() + array_index * stride();
   }
 
-private:
   [[nodiscard]]
   static constexpr std::size_t round_up(std::size_t unpadded) {
     return (unpadded + elements_per_align_ - 1) & 

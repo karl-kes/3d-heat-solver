@@ -9,4 +9,5 @@ private:
   std::unique_ptr<Integrator> integrator_;
 
 public:
+  Simulation(const Config& config);
 };
