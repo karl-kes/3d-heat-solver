@@ -9,10 +9,7 @@ private:
   double alpha_;
 
 public:
-  explicit Integrator(const Config& config)
-  : dt_{config.dt}
-  , alpha_{config.alpha}
-  { }
+  explicit Integrator(const Config& config);
   virtual ~Integrator() = default;
 
   virtual void integrate(Grid& grid) = 0;
@@ -23,6 +20,7 @@ public:
 
 class ExplicitEuler : public Integrator {
 public:
-  ExplicitEuler(const Config& config) : Integrator(config) {}
+  ExplicitEuler(const Config& config);
+
   void integrate(Grid& grid) override;
 };

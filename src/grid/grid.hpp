@@ -21,6 +21,7 @@ private:
 
 public:
   Grid(const Config& config);
+  Grid(Grid&);
 
   [[nodiscard]]
   double laplacian(std::size_t x, std::size_t y, std::size_t z) const {
@@ -36,18 +37,22 @@ public:
     const std::size_t z_high{idx(x,y,z+1)};
 
     const double* RESTRICT u{field()};
-
-    return (
+    const double laplacian{
       (u[x_low] - 2.0 * u[center] + u[x_high]) * inv_dx_sq_ +
       (u[y_low] - 2.0 * u[center] + u[y_high]) * inv_dy_sq_ +
       (u[z_low] - 2.0 * u[center] + u[z_high]) * inv_dz_sq_
-    );
+    };
+
+    return laplacian;
   }
 
   [[nodiscard]] double* field() { return data_[U]; }
   [[nodiscard]] const double* field() const { return data_[U]; }
 
-private:
+  [[nodiscard]] std::size_t padded_nx() const { return AlignedSoA<std::size_t>::round_up(nx_); }
+  [[nodiscard]] std::size_t padded_ny() const { return AlignedSoA<std::size_t>::round_up(ny_); }
+  [[nodiscard]] std::size_t padded_nz() const { return AlignedSoA<std::size_t>::round_up(nz_); }
+
   [[nodiscard]]
   std::size_t idx(std::size_t x, std::size_t y, std::size_t z) const {
     return x + nx_ * (y + ny_ * z);
