@@ -4,6 +4,8 @@
 
 struct Config {
   std::size_t nx, ny, nz;
-  double dx, dy, dz, dt;
-  double alpha;
+  float dx, dy, dz, dt;
+  float alpha;
+
+  std::size_t total_steps;
 };

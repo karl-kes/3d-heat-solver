@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <new>
+#include <cstdlib>
 
 template <typename T>
 class AlignedSoA {
@@ -23,14 +25,14 @@ public:
   AlignedSoA(std::size_t num_elements, std::size_t num_arrays)
   : num_elements_{num_elements}
   , stride_length_{round_up(num_elements)}
-  , num_arrays{num_arrays} {
+  , num_arrays_{num_arrays} {
     const std::size_t total_elements{num_arrays_ * stride_length_};
     const std::size_t total_bytes{total_elements * sizeof(T)};
 
     T* ptr{static_cast<T*>(aligned_alloc(SIMD_BYTES, total_bytes))};
     if (!ptr) { throw std::bad_alloc(); }
 
-    std::fill_n(ptr, total_elements, T[]);
+    std::fill_n(ptr, total_elements, T{});
     data_.reset(ptr);
   }
 
@@ -41,12 +43,12 @@ public:
 
   [[nodiscard]]
   T* operator[](std::size_t array_index) { 
-    return memory_block_.get() + array_index * stride();
+    return data_.get() + array_index * stride();
   }
 
   [[nodiscard]]
   const T* operator[](std::size_t array_index) const {
-    return memory_block_.get() + array_index * stride();
+    return data_.get() + array_index * stride();
   }
 
   [[nodiscard]]

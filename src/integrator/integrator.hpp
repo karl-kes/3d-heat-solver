@@ -5,22 +5,22 @@
 
 class Integrator {
 private:
-  double dt_;
-  double alpha_;
+  float dt_;
+  float alpha_;
 
 public:
   explicit Integrator(const Config& config);
   virtual ~Integrator() = default;
 
-  virtual void integrate(Grid& grid) = 0;
+  virtual void integrate(const Grid& old_grid, Grid& new_grid) = 0;
 
-  double dt() const { return dt_; }
-  double alpha() const { return alpha_; }
+  float dt() const { return dt_; }
+  float alpha() const { return alpha_; }
 };
 
 class ExplicitEuler : public Integrator {
 public:
   ExplicitEuler(const Config& config);
 
-  void integrate(Grid& grid) override;
+  void integrate(const Grid& old_grid, Grid& new_grid) override;
 };

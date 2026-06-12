@@ -10,10 +10,10 @@ private:
   std::size_t nx_, ny_, nz_;
   std::size_t padded_nx_, padded_ny_, padded_nz_;
 
-  double dx_, dy_, dz_;
-  double inv_dx_sq_, inv_dy_sq_, inv_dz_sq_;
+  float dx_, dy_, dz_;
+  float inv_dx_sq_, inv_dy_sq_, inv_dz_sq_;
 
-  AlignedSoA<double> data_;
+  AlignedSoA<float> data_;
 
   enum : std::size_t {
     U, NUM_SUB_ARR
@@ -21,10 +21,10 @@ private:
 
 public:
   Grid(const Config& config);
-  Grid(Grid&);
+  Grid(const Grid&);
 
   [[nodiscard]]
-  double laplacian(std::size_t x, std::size_t y, std::size_t z) const {
+  float laplacian(std::size_t x, std::size_t y, std::size_t z) const {
     const std::size_t center{idx(x,y,z)};
 
     const std::size_t x_low{idx(x-1,y,z)};
@@ -36,8 +36,8 @@ public:
     const std::size_t z_low{idx(x,y,z-1)};
     const std::size_t z_high{idx(x,y,z+1)};
 
-    const double* RESTRICT u{field()};
-    const double laplacian{
+    const float* RESTRICT u{field()};
+    const float laplacian{
       (u[x_low] - 2.0 * u[center] + u[x_high]) * inv_dx_sq_ +
       (u[y_low] - 2.0 * u[center] + u[y_high]) * inv_dy_sq_ +
       (u[z_low] - 2.0 * u[center] + u[z_high]) * inv_dz_sq_
@@ -46,15 +46,15 @@ public:
     return laplacian;
   }
 
-  [[nodiscard]] double* field() { return data_[U]; }
-  [[nodiscard]] const double* field() const { return data_[U]; }
+  [[nodiscard]] float* field() { return data_[U]; }
+  [[nodiscard]] const float* field() const { return data_[U]; }
 
-  [[nodiscard]] std::size_t padded_nx() const { return AlignedSoA<std::size_t>::round_up(nx_); }
-  [[nodiscard]] std::size_t padded_ny() const { return AlignedSoA<std::size_t>::round_up(ny_); }
-  [[nodiscard]] std::size_t padded_nz() const { return AlignedSoA<std::size_t>::round_up(nz_); }
+  [[nodiscard]] std::size_t nx() const { return nx_; }
+  [[nodiscard]] std::size_t ny() const { return ny_; }
+  [[nodiscard]] std::size_t nz() const { return nz_; }
 
   [[nodiscard]]
   std::size_t idx(std::size_t x, std::size_t y, std::size_t z) const {
-    return x + nx_ * (y + ny_ * z);
+    return x + padded_nx_ * (y + padded_ny_ * z);
   }
 };
