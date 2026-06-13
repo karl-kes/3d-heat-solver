@@ -21,7 +21,6 @@ private:
 
 public:
   Grid(const Config& config);
-  Grid(const Grid&);
 
   [[nodiscard]]
   float laplacian(std::size_t x, std::size_t y, std::size_t z) const {
@@ -38,9 +37,9 @@ public:
 
     const float* RESTRICT u{field()};
     const float laplacian{
-      (u[x_low] - 2.0 * u[center] + u[x_high]) * inv_dx_sq_ +
-      (u[y_low] - 2.0 * u[center] + u[y_high]) * inv_dy_sq_ +
-      (u[z_low] - 2.0 * u[center] + u[z_high]) * inv_dz_sq_
+      (u[x_low] - 2.0f * u[center] + u[x_high]) * inv_dx_sq_ +
+      (u[y_low] - 2.0f * u[center] + u[y_high]) * inv_dy_sq_ +
+      (u[z_low] - 2.0f * u[center] + u[z_high]) * inv_dz_sq_
     };
 
     return laplacian;

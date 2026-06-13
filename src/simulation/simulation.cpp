@@ -13,7 +13,6 @@ void Simulation::run() {
 
   for (std::size_t step{}; step < total_steps_; ++step) {
     integrator_->integrate(*curr_grid, *next_grid);
-
     std::swap(curr_grid, next_grid);
   }
 }

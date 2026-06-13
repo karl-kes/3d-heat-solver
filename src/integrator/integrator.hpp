@@ -2,6 +2,9 @@
 
 #include "../grid/grid.hpp"
 #include "../config/config.hpp"
+#include "../utilities/macros.hpp"
+
+#include <omp.h>
 
 class Integrator {
 private:
@@ -16,6 +19,9 @@ public:
 
   float dt() const { return dt_; }
   float alpha() const { return alpha_; }
+
+private:
+  virtual void boundary_condition(Grid& grid) = 0;
 };
 
 class ExplicitEuler : public Integrator {
@@ -23,4 +29,7 @@ public:
   ExplicitEuler(const Config& config);
 
   void integrate(const Grid& old_grid, Grid& new_grid) override;
+
+private:
+  void boundary_condition(Grid& grid) override;
 };

@@ -1,6 +1,12 @@
 #pragma once
 
-#include <malloc.h>
+#if defined(_MSC_VER)
+  #include <malloc.h>
+#else
+  #include <cstdlib>
+#endif
+
+#include <cstddef>
 
 #if defined(__GNUC__) || defined(__clang__)
   #define RESTRICT __restrict__
