@@ -1,0 +1,81 @@
+#pragma once
+
+#include "../grid/grid.hpp"
+
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include <vector>
+
+namespace vtk {
+
+namespace detail {
+  inline uint32_t bswap32(uint32_t v) {
+    return ((v & 0xFF000000u) >> 24) |
+           ((v & 0x00FF0000u) >>  8) |
+           ((v & 0x0000FF00u) <<  8) |
+           ((v & 0x000000FFu) << 24);
+  }
+
+  inline const std::filesystem::path& output_dir() {
+    static const std::filesystem::path dir{"out"};
+
+    static const bool created{
+      (std::filesystem::create_directories(dir), true)
+    };
+    (void)created;
+
+    return dir;
+  }
+}
+
+inline void write(const Grid& grid, std::size_t step) {
+  char name[32];
+  
+  std::snprintf(name, sizeof(name), "step_%04zu.vtk", step);
+  const auto filename{detail::output_dir() / name};
+
+  std::ofstream out(filename, std::ios::binary);
+  if (!out) { throw std::runtime_error("failed to open vtk output file"); }
+
+  const std::size_t nx{grid.nx()};
+  const std::size_t ny{grid.ny()};
+  const std::size_t nz{grid.nz()};
+
+  out << "# vtk DataFile Version 3.0\n"
+      << "Heat solver step " << step << "\n"
+      << "BINARY\n"
+      << "DATASET STRUCTURED_POINTS\n"
+      << "DIMENSIONS " << nx << ' ' << ny << ' ' << nz << '\n'
+      << "ORIGIN 0 0 0\n"
+      << "SPACING " << grid.dx() << ' ' << grid.dy() << ' ' << grid.dz() << '\n'
+      << "POINT_DATA " << nx * ny * nz << '\n'
+      << "SCALARS temperature float 1\n"
+      << "LOOKUP_TABLE default\n";
+
+  const float* u{grid.field()};
+  std::vector<uint32_t> row(nx);
+
+  for (std::size_t k{}; k < nz; ++k) {
+    for (std::size_t j{}; j < ny; ++j) {
+      for (std::size_t i{}; i < nx; ++i) {
+        float val{u[grid.idx(i, j, k)]};
+
+        uint32_t bits;
+        std::memcpy(&bits, &val, 4);
+
+        row[i] = detail::bswap32(bits);
+      }
+
+      out.write(
+        reinterpret_cast<const char*>(row.data()),
+        static_cast<std::streamsize>(nx * sizeof(uint32_t))
+      );
+    }
+  }
+}
+
+} // namespace vtk

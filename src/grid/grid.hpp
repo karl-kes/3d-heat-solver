@@ -31,7 +31,7 @@ public:
 
     const std::size_t y_low{idx(x,y-1,z)};
     const std::size_t y_high{idx(x,y+1,z)};
-    
+
     const std::size_t z_low{idx(x,y,z-1)};
     const std::size_t z_high{idx(x,y,z+1)};
 
@@ -51,6 +51,10 @@ public:
   [[nodiscard]] std::size_t nx() const { return nx_; }
   [[nodiscard]] std::size_t ny() const { return ny_; }
   [[nodiscard]] std::size_t nz() const { return nz_; }
+
+  [[nodiscard]] float dx() const { return dx_; }
+  [[nodiscard]] float dy() const { return dy_; }
+  [[nodiscard]] float dz() const { return dz_; }
 
   [[nodiscard]]
   std::size_t idx(std::size_t x, std::size_t y, std::size_t z) const {
