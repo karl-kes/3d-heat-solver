@@ -29,9 +29,12 @@ void Simulation::initialize() {
   const float two_sigma_sq{2.0f * sigma * sigma};
   const float inv_two_sig_sq{1.0f / two_sigma_sq};
 
-  for (std::size_t k{}; k < nz; ++k) {
-    for (std::size_t j{}; j < ny; ++j) {
-      for (std::size_t i{}; i < nx; ++i) {
+  #pragma omp parallel for collapse(2)
+  for (std::size_t k = 0; k < nz; ++k) {
+    for (std::size_t j = 0; j < ny; ++j) {
+
+      #pragma omp simd
+      for (std::size_t i = 0; i < nx; ++i) {
         const float rx{static_cast<float>(i) - center_x};
         const float ry{static_cast<float>(j) - center_y};
         const float rz{static_cast<float>(k) - center_z};
@@ -56,4 +59,6 @@ void Simulation::run() {
     integrator_->integrate(*curr_grid, *next_grid);
     std::swap(curr_grid, next_grid);
   }
+
+  vtk::write(*curr_grid, total_steps_);
 }

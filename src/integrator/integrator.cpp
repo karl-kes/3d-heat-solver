@@ -18,8 +18,10 @@ void ExplicitEuler::boundary_condition(Grid& grid) {
   ASSUME_ALIGNED(u_new, SIMD_BYTES);
 
   // X-faces:
-  for (std::size_t k{1}; k < nz-1; ++k) {
-    for (std::size_t j{1}; j < ny-1; ++j) {
+  for (std::size_t k = 1; k < nz-1; ++k) {
+
+    #pragma omp simd
+    for (std::size_t j = 1; j < ny-1; ++j) {
       const std::size_t left_ghost{grid.idx(0,j,k)};
       const std::size_t left_inner{grid.idx(1,j,k)};
 
@@ -32,8 +34,10 @@ void ExplicitEuler::boundary_condition(Grid& grid) {
   }
 
   // Y-faces:
-  for (std::size_t k{1}; k < nz-1; ++k) {
-    for (std::size_t i{0}; i < nx; ++i) {
+  for (std::size_t k = 1; k < nz-1; ++k) {
+
+    #pragma omp simd
+    for (std::size_t i = 0; i < nx; ++i) {
       const std::size_t front_ghost{grid.idx(i,0,k)};
       const std::size_t front_inner{grid.idx(i,1,k)};
 
@@ -46,8 +50,10 @@ void ExplicitEuler::boundary_condition(Grid& grid) {
   }
 
   // Z-faces:
-  for (std::size_t j{0}; j < ny; ++j) {
-    for (std::size_t i{0}; i < nx; ++i) {
+  for (std::size_t j = 0; j < ny; ++j) {
+
+    #pragma omp simd
+    for (std::size_t i = 0; i < nx; ++i) {
       const std::size_t bottom_ghost{grid.idx(i,j,0)};
       const std::size_t bottom_inner{grid.idx(i,j,1)};
 
@@ -72,12 +78,13 @@ void ExplicitEuler::integrate(const Grid& old_grid, Grid& new_grid) {
   ASSUME_ALIGNED(u_new, SIMD_BYTES);
   ASSUME_ALIGNED(u_old, SIMD_BYTES);
 
-  for (std::size_t k{1}; k < nz-1; ++k) {
-    for (std::size_t j{1}; j < ny-1; ++j) {
-      for (std::size_t i{1}; i < nx-1; ++i) {
-        
-        const std::size_t point{old_grid.idx(i,j,k)};
+  #pragma omp parallel for collapse(2)
+  for (std::size_t k = 1; k < nz-1; ++k) {
+    for (std::size_t j = 1; j < ny-1; ++j) {
 
+      #pragma omp simd
+      for (std::size_t i = 1; i < nx-1; ++i) {
+        const std::size_t point{old_grid.idx(i,j,k)};
         u_new[point] = u_old[point] + alpha_dt * old_grid.laplacian(i,j,k);
       }
     }
