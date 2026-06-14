@@ -4,8 +4,6 @@
 #include "../config/config.hpp"
 #include "../utilities/macros.hpp"
 
-#include <omp.h>
-
 class Integrator {
 private:
   float dt_;

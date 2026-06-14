@@ -19,4 +19,7 @@ public:
   Simulation(const Config& config);
 
   void run();
+  
+private:
+  void initialize();
 };

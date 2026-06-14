@@ -1,5 +1,4 @@
 #include "simulation/simulation.hpp"
-#include "simulation/simulation.hpp"
 #include "utilities/timer.hpp"
 
 #include <iostream>
