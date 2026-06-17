@@ -30,18 +30,18 @@ void Simulation::initialize() {
   const float inv_two_sig_sq{1.0f / two_sigma_sq};
 
   #pragma omp parallel for collapse(2)
-  for (std::size_t k = 0; k < nz; ++k) {
-    for (std::size_t j = 0; j < ny; ++j) {
+  for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
+    for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(ny); ++j) {
 
       #pragma omp simd
       for (std::size_t i = 0; i < nx; ++i) {
         const float rx{static_cast<float>(i) - center_x};
         const float ry{static_cast<float>(j) - center_y};
         const float rz{static_cast<float>(k) - center_z};
-        const float r_squared{rx*rx + ry*ry + rz*rz};
+        const float r_sq{rx*rx + ry*ry + rz*rz};
 
         const std::size_t point{grid_a_.idx(i,j,k)};
-        u[point] = amplitude * std::exp(-r_squared * inv_two_sig_sq);
+        u[point] = amplitude * std::exp(-r_sq * inv_two_sig_sq);
       }
     }
   }

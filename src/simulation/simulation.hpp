@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../grid/grid.hpp"
-#include "../integrator/integrator.hpp"
+#include "../integrator/integrator.cuh"
 
 #include <utility>
 #include <memory>

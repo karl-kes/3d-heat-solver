@@ -1,4 +1,4 @@
-#include "integrator.hpp"
+#include "integrator.cuh"
 
 Integrator::Integrator(const Config& config)
 : dt_{config.dt}
@@ -66,6 +66,10 @@ void ExplicitEuler::boundary_condition(Grid& grid) {
   }
 }
 
+__global__ void integrateGrid(float* data, int N) {
+
+}
+
 void ExplicitEuler::integrate(const Grid& old_grid, Grid& new_grid) {
   const std::size_t nx{old_grid.nx()};
   const std::size_t ny{old_grid.ny()};
@@ -79,8 +83,8 @@ void ExplicitEuler::integrate(const Grid& old_grid, Grid& new_grid) {
   ASSUME_ALIGNED(u_old, SIMD_BYTES);
 
   #pragma omp parallel for collapse(2)
-  for (std::size_t k = 1; k < nz-1; ++k) {
-    for (std::size_t j = 1; j < ny-1; ++j) {
+  for (std::ptrdiff_t k = 1; k < static_cast<std::ptrdiff_t>(nz-1); ++k) {
+    for (std::ptrdiff_t j = 1; j < static_cast<std::ptrdiff_t>(ny-1); ++j) {
 
       #pragma omp simd
       for (std::size_t i = 1; i < nx-1; ++i) {

@@ -28,6 +28,7 @@ compile_commands.json
 *.sdf
 *.VC.db
 *.VC.opendb
+.claude
 
 # clangd
 .cache/
