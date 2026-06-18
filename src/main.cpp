@@ -10,6 +10,7 @@ int main() {
   Timer timer{};
   sim.run();
   std::cout << timer.elapsed_ms() << "ms\n";
+  std::cout.flush();
 
   return 0;
 }

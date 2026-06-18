@@ -9,7 +9,7 @@ Simulation::Simulation(const Config& config)
 , integrator_{std::make_unique<ExplicitEuler>(config)}
 , total_steps_{config.total_steps}
 , output_interval_{config.output_interval} {
-  initialize();
+  // initialize();
 }
 
 void Simulation::initialize() {
@@ -51,8 +51,13 @@ void Simulation::run() {
   auto curr_grid{&grid_a_};
   auto next_grid{&grid_b_};
 
+  const bool enable_vtk{output_interval_ > 0};
   for (std::size_t step{}; step < total_steps_; ++step) {
-    const bool output{output_interval_ > 0 && step % output_interval_ == 0};
+    const bool output{
+      enable_vtk &&
+      output_interval_ > 0 &&
+      step % output_interval_ == 0
+    };
 
     if (output) { vtk::write(*curr_grid, step); }
 
@@ -60,5 +65,5 @@ void Simulation::run() {
     std::swap(curr_grid, next_grid);
   }
 
-  vtk::write(*curr_grid, total_steps_);
+  if(enable_vtk) { vtk::write(*curr_grid, total_steps_); }
 }

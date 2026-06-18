@@ -1,21 +1,25 @@
 #pragma once
 
+#include <cstddef>
+
 #if defined(__CUDACC__)
   #include <cuda_runtime.h>
   #define RESTRICT __restrict__
-  constexpr bool CUDA{true};
 #elif defined(__GNUC__) || defined(__clang__)
-  #include <cstdlib>
+  #include <malloc.h>
   #define RESTRICT __restrict__
-  constexpr bool CUDA{false};
 #elif defined(_MSC_VER)
   #include <malloc.h>
   #define RESTRICT __restrict
-  constexpr bool CUDA{false};
 #else
   #include <cstdlib>
-  constexpr bool CUDA{false};
   #define RESTRICT
+#endif
+
+#if defined(__CUDACC__)
+  #define CUDA_CALLABLE __host__ __device__
+#else
+  #define CUDA_CALLABLE
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

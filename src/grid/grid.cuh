@@ -15,7 +15,6 @@ private:
   float inv_dx_sq_, inv_dy_sq_, inv_dz_sq_;
 
   AlignedSoA<float> data_;
-  float* g_data_;
 
   enum : std::size_t {
     U, NUM_SUB_ARR
@@ -23,6 +22,7 @@ private:
 
 public:
   Grid(const Config& config);
+  ~Grid();
 
   [[nodiscard]]
   float laplacian(std::size_t x, std::size_t y, std::size_t z) const {
@@ -54,9 +54,17 @@ public:
   [[nodiscard]] std::size_t ny() const { return ny_; }
   [[nodiscard]] std::size_t nz() const { return nz_; }
 
+  [[nodiscard]] std::size_t p_nx() const { return padded_nx_; }
+  [[nodiscard]] std::size_t p_ny() const { return padded_ny_; }
+  [[nodiscard]] std::size_t p_nz() const { return padded_nz_; }
+
   [[nodiscard]] float dx() const { return dx_; }
   [[nodiscard]] float dy() const { return dy_; }
   [[nodiscard]] float dz() const { return dz_; }
+
+  [[nodiscard]] float inv_dx_sq() const { return inv_dx_sq_; }
+  [[nodiscard]] float inv_dy_sq() const { return inv_dy_sq_; }
+  [[nodiscard]] float inv_dz_sq() const { return inv_dz_sq_; }
 
   [[nodiscard]]
   std::size_t idx(std::size_t x, std::size_t y, std::size_t z) const {

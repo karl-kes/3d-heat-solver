@@ -9,6 +9,7 @@ Grid::Grid(const Config& config)
 , inv_dx_sq_{1.0f/(dx_*dx_)}
 , inv_dy_sq_{1.0f/(dy_*dy_)}
 , inv_dz_sq_{1.0f/(dz_*dz_)}
-, data_{}
-, g_data_{}
+, data_{padded_nx_*padded_ny_*padded_nz_, NUM_SUB_ARR}
 { }
+
+Grid::~Grid() = default;

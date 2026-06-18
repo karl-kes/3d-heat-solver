@@ -32,7 +32,12 @@ public:
     T* ptr{static_cast<T*>(aligned_alloc(SIMD_BYTES, total_bytes))};
     if (!ptr) { throw std::bad_alloc(); }
 
-    std::fill_n(ptr, total_elements, T{});
+    #if defined(__CUDACC__)
+      cudaMemset(ptr, 0, total_bytes);
+    #else
+      std::fill_n(ptr, total_elements, T{});
+    #endif
+
     data_.reset(ptr);
   }
 
