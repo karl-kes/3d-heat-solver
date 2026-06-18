@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../grid/grid.hpp"
+#include "../grid/grid.cuh"
 
 #include <cstdint>
 #include <cstdio>

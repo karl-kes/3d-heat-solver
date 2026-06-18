@@ -1,18 +1,20 @@
 #pragma once
 
-#if defined(_MSC_VER)
+#if defined(__CUDACC__)
+  #include <cuda_runtime.h>
+  #define RESTRICT __restrict__
+  constexpr bool CUDA{true};
+#elif defined(__GNUC__) || defined(__clang__)
+  #include <cstdlib>
+  #define RESTRICT __restrict__
+  constexpr bool CUDA{false};
+#elif defined(_MSC_VER)
   #include <malloc.h>
+  #define RESTRICT __restrict
+  constexpr bool CUDA{false};
 #else
   #include <cstdlib>
-#endif
-
-#include <cstddef>
-
-#if defined(__GNUC__) || defined(__clang__)
-  #define RESTRICT __restrict__
-#elif defined(_MSC_VER)
-  #define RESTRICT __restrict
-#else
+  constexpr bool CUDA{false};
   #define RESTRICT
 #endif
 
@@ -29,11 +31,24 @@
 constexpr std::size_t SIMD_BYTES{64};
 
 inline void* aligned_alloc(std::size_t alignment, std::size_t size) {
+#if defined(__CUDACC__)
+  (void)alignment;
+
+  void* ptr{};
+  cudaMalloc(&ptr, size);
+
+  return ptr;
+#else
   return _aligned_malloc(size, alignment);
+#endif
 }
 
 inline void aligned_free(void* ptr) {
+#if defined(__CUDACC__)
+  cudaFree(ptr);
+#else
   _aligned_free(ptr);
+#endif
 }
 
 struct AlignedDeleter {

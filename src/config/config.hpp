@@ -4,7 +4,7 @@
 
 struct Config {
   std::size_t total_steps{1000};
-  std::size_t output_interval{1}; // 0 = disabled
+  std::size_t output_interval{0}; // 0 = disabled
 
   std::size_t nx{128};
   std::size_t ny{128};

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../utilities/aligned_soa.hpp"
+#include "../utilities/aligned_soa.cuh"
+#include "../utilities/macros.cuh"
 #include "../config/config.hpp"
 
 #include <cstdint>
@@ -14,6 +15,7 @@ private:
   float inv_dx_sq_, inv_dy_sq_, inv_dz_sq_;
 
   AlignedSoA<float> data_;
+  float* g_data_;
 
   enum : std::size_t {
     U, NUM_SUB_ARR

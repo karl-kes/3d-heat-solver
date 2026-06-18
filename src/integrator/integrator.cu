@@ -66,33 +66,59 @@ void ExplicitEuler::boundary_condition(Grid& grid) {
   }
 }
 
-__global__ void integrateGrid(float* data, int N) {
+__global__ void cudaIntegrateGrid(
+  std::size_t nx, std::size_t ny, std::size_t nz,
+  float alpha_dt,
+  const float* RESTRICT u_old,
+  float* RESTRICT u_new
+) {
+  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x + 1};
+  const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y + 1};
+  const std::size_t k{blockIdx.z * blockDim.z + threadIdx.z + 1};
 
+  if (i >= nx-1 || j >= ny-1 || k >= nz-1) { return; }
+
+  // calculation
 }
 
 void ExplicitEuler::integrate(const Grid& old_grid, Grid& new_grid) {
-  const std::size_t nx{old_grid.nx()};
-  const std::size_t ny{old_grid.ny()};
-  const std::size_t nz{old_grid.nz()};
-  const float alpha_dt{alpha()*dt()};
+  #if defined(__CUDACC__)
+    dim3 threads(8, 8, 8);
+    dim3 blocks(
+      (static_cast<unsigned>(old_grid.nx()-2) + threads.x - 1) / threads.x,
+      (static_cast<unsigned>(old_grid.ny()-2) + threads.y - 1) / threads.y,
+      (static_cast<unsigned>(old_grid.nz()-2) + threads.z - 1) / threads.z
+    );
+    cudaIntegrateGrid<<<blocks, threads>>>(
+      old_grid.nx(), old_grid.ny(), old_grid.nz(),
+      alpha()*dt(),
+      old_grid.field(),
+      new_grid.field()
+    );
+  #else
+    const std::size_t nx{old_grid.nx()};
+    const std::size_t ny{old_grid.ny()};
+    const std::size_t nz{old_grid.nz()};
+    const float alpha_dt{alpha()*dt()};
 
-  float* RESTRICT u_new{new_grid.field()};
-  const float* RESTRICT u_old{old_grid.field()};
+    float* RESTRICT u_new{new_grid.field()};
+    const float* RESTRICT u_old{old_grid.field()};
 
-  ASSUME_ALIGNED(u_new, SIMD_BYTES);
-  ASSUME_ALIGNED(u_old, SIMD_BYTES);
+    ASSUME_ALIGNED(u_new, SIMD_BYTES);
+    ASSUME_ALIGNED(u_old, SIMD_BYTES);
 
-  #pragma omp parallel for collapse(2)
-  for (std::ptrdiff_t k = 1; k < static_cast<std::ptrdiff_t>(nz-1); ++k) {
-    for (std::ptrdiff_t j = 1; j < static_cast<std::ptrdiff_t>(ny-1); ++j) {
+    #pragma omp parallel for collapse(2)
+    for (std::ptrdiff_t k = 1; k < static_cast<std::ptrdiff_t>(nz-1); ++k) {
+      for (std::ptrdiff_t j = 1; j < static_cast<std::ptrdiff_t>(ny-1); ++j) {
 
-      #pragma omp simd
-      for (std::size_t i = 1; i < nx-1; ++i) {
-        const std::size_t point{old_grid.idx(i,j,k)};
-        u_new[point] = u_old[point] + alpha_dt * old_grid.laplacian(i,j,k);
+        #pragma omp simd
+        for (std::size_t i = 1; i < nx-1; ++i) {
+          const std::size_t point{old_grid.idx(i,j,k)};
+          u_new[point] = u_old[point] + alpha_dt * old_grid.laplacian(i,j,k);
+        }
       }
     }
-  }
 
-  this->boundary_condition(new_grid);
+    this->boundary_condition(new_grid);
+  #endif
 }

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../grid/grid.hpp"
+#include "../grid/grid.cuh"
 #include "../config/config.hpp"
-#include "../utilities/macros.hpp"
+#include "../utilities/macros.cuh"
 
 #include <omp.h>
 
