@@ -24,7 +24,7 @@ endif()
 add_executable(heat_solver
   src/main.cpp
   src/grid/grid.cu
-  src/simulation/simulation.cpp
+  src/simulation/simulation.cu
   src/integrator/integrator.cu
 )
 
@@ -33,19 +33,57 @@ target_include_directories(heat_solver PRIVATE src)
 if(NOT HEAT_SOLVER_CUDA)
   set_source_files_properties(
     src/grid/grid.cu
+    src/simulation/simulation.cu
     src/integrator/integrator.cu
     PROPERTIES LANGUAGE CXX
   )
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  include(CheckCXXSourceRuns)
+
+  set(CMAKE_REQUIRED_FLAGS "")
+  check_cxx_source_runs("
+    #include <intrin.h>
+    int main() {
+      int info[4];
+      __cpuid(info, 0);
+      if (info[0] < 7) { return 1; }
+      __cpuidex(info, 7, 0);
+      return (info[1] & (1 << 16)) ? 0 : 1; // AVX-512F (EBX bit 16)
+    }
+  " HEAT_SOLVER_HOST_HAS_AVX512)
+
+  check_cxx_source_runs("
+    #include <intrin.h>
+    int main() {
+      int info[4];
+      __cpuid(info, 0);
+      if (info[0] < 7) { return 1; }
+      __cpuidex(info, 7, 0);
+      return (info[1] & (1 << 5)) ? 0 : 1; // AVX2 (EBX bit 5)
+    }
+  " HEAT_SOLVER_HOST_HAS_AVX2)
+
+  if(HEAT_SOLVER_HOST_HAS_AVX512)
+    set(HEAT_SOLVER_ARCH_FLAG /arch:AVX512)
+  elseif(HEAT_SOLVER_HOST_HAS_AVX2)
+    set(HEAT_SOLVER_ARCH_FLAG /arch:AVX2)
+  else()
+    set(HEAT_SOLVER_ARCH_FLAG "")
+  endif()
+
   target_compile_options(heat_solver PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental>
+    $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental /W4 /WX /wd4849 ${HEAT_SOLVER_ARCH_FLAG}>
+    $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<CONFIG:Debug>>>:/O2>
     $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${HEAT_SOLVER_CUDA}>>:-Xcompiler=/openmp:experimental>
   )
 else()
   find_package(OpenMP REQUIRED)
   target_link_libraries(heat_solver PRIVATE OpenMP::OpenMP_CXX)
+  target_compile_options(heat_solver PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-O3 -march=native -Wall -Wextra -Werror>
+  )
   if(HEAT_SOLVER_CUDA)
     target_compile_options(heat_solver PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>

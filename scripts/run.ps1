@@ -15,6 +15,9 @@ try {
   cmd /c "`"$vcvars`" && cmake -S . -B $buildDir -G Ninja -DHEAT_SOLVER_ENABLE_CUDA=$cudaFlag && cmake --build $buildDir"
   if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
   Write-Host "Built: $projectRoot\$buildDir\heat_solver.exe"
+
+  & "$projectRoot\$buildDir\heat_solver.exe"
+  if ($LASTEXITCODE -ne 0) { throw "Run failed with exit code $LASTEXITCODE" }
 } finally {
   Pop-Location
 }

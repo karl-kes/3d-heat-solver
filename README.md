@@ -5,7 +5,7 @@ C++ solver for the heat equation in 3D, using an explicit (forward Euler) finite
 - **CPU** — OpenMP-parallelized, SIMD-vectorized stencil loops.
 - **GPU** — CUDA kernels, dispatched from the same `Integrator` classes via `#if defined(__CUDACC__)`.
 
-Both backends are kept in the same `.cu`/`.cuh` files; CUDA support is optional — the project builds and runs correctly with a plain C++ compiler if no CUDA toolchain is present.
+Both backends are kept in the same `.cu`/`.cuh` files; CUDA support is optional; the project builds and runs correctly with a plain C++ compiler if no CUDA toolchain is present.
 
 ## Requirements
 
@@ -19,18 +19,18 @@ Both backends are kept in the same `.cu`/`.cuh` files; CUDA support is optional 
 From an elevated/regular PowerShell, using the helper scripts in `scripts/`:
 
 ```powershell
-.\scripts\build.ps1              # CUDA build (build/)
-.\scripts\build.ps1 --cuda-off   # CPU-only build (build-nocuda/)
+.\scripts\run.ps1              # CUDA build (build/) + run
+.\scripts\run.ps1 --cuda-off   # CPU-only build (build-nocuda/) + run
 ```
 
 or on a POSIX shell:
 
 ```bash
-./scripts/build.sh
-./scripts/build.sh --cuda-off
+./scripts/run.sh
+./scripts/run.sh --cuda-off
 ```
 
-Both scripts configure and build via `vcvars64.bat` + CMake/Ninja, and print the path to the resulting `heat_solver.exe`.
+Both scripts configure and build via `vcvars64.bat` + CMake/Ninja, then execute the resulting `heat_solver.exe`.
 
 Manually, from the project root:
 
@@ -58,11 +58,15 @@ Forward Euler integration + boundary condition update, 1000 steps, measured on t
 
 | Grid size | CPU (OpenMP/SIMD) | GPU (CUDA) | Speedup |
 |-----------|-------------------|------------|---------|
-| 128³      | ~1096 ms          | ~62 ms     | ~17.6x  |
-| 256³      | ~10.1 s           | ~417 ms    | ~24x    |
-| 512³      | ~655 s            | ~3.5 s     | ~185x   |
+| 8³        | ~3.08 ms          | ~18.1 ms   | ~0.170x |
+| 16³       | ~13.6 ms          | ~14.5 ms   | ~0.944x |
+| 32³       | ~74.7 ms          | ~23.0 ms   | ~3.25x  |
+| 64³       | ~527 ms           | ~21.3 ms   | ~24.7x  |
+| 128³      | ~3850 ms          | ~105 ms    | ~36.6x  |
+| 256³      | ~29700 ms         | ~827 ms    | ~35.9x  |
+| 512³      | ~229000 ms        | ~7210 ms   | ~31.8x  |
 
-The speedup grows with grid size: once the working set exceeds CPU cache, the CPU path becomes bound by DRAM bandwidth, while the GPU's much higher memory bandwidth keeps scaling.
+Each value is the average of 3 runs (total of 4, first run discarded as warm-up), via [`scripts/benchmark.ps1`](scripts/benchmark.ps1). At very small grids, fixed CUDA kernel-launch overhead dominates and the GPU is actually slower than the CPU; the crossover happens between 16³ and 32³. From there, speedup climbs and plateaus in the 30-37x range as both sides become bound by memory bandwidth rather than compute.
 
 ## Output
 

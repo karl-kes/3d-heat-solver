@@ -32,32 +32,12 @@
   #define ASSUME_ALIGNED(ptr, align) ((void)0)
 #endif
 
-constexpr std::size_t SIMD_BYTES{64};
-
-inline void* aligned_alloc(std::size_t alignment, std::size_t size) {
-#if defined(__CUDACC__)
-  (void)alignment;
-
-  void* ptr{};
-  cudaMalloc(&ptr, size);
-
-  return ptr;
+#if defined(__AVX512F__)
+  constexpr std::size_t SIMD_BYTES{64};
+#elif defined(__AVX2__) || defined(__AVX__)
+  constexpr std::size_t SIMD_BYTES{32};
+#elif defined(__SSE2__) || defined(_M_X64) || defined(_M_AMD64) || defined(__ARM_NEON) || defined(__aarch64__)
+  constexpr std::size_t SIMD_BYTES{16};
 #else
-  return _aligned_malloc(size, alignment);
+  constexpr std::size_t SIMD_BYTES{alignof(std::max_align_t)};
 #endif
-}
-
-inline void aligned_free(void* ptr) {
-#if defined(__CUDACC__)
-  cudaFree(ptr);
-#else
-  _aligned_free(ptr);
-#endif
-}
-
-struct AlignedDeleter {
-  template <typename T>
-  void operator()(T* ptr) const {
-    aligned_free(ptr);
-  }
-};

@@ -25,3 +25,5 @@ VCVARS='C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxili
 cmd /c "\"$VCVARS\" && cmake -S . -B $BUILD_DIR -G Ninja -DHEAT_SOLVER_ENABLE_CUDA=$CUDA_FLAG && cmake --build $BUILD_DIR"
 
 echo "Built: $PROJECT_ROOT/$BUILD_DIR/heat_solver.exe"
+
+"$PROJECT_ROOT/$BUILD_DIR/heat_solver.exe"

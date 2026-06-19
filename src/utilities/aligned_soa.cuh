@@ -8,6 +8,38 @@
 #include <new>
 #include <cstdlib>
 
+namespace {
+
+inline void* aligned_alloc(std::size_t alignment, std::size_t size) {
+#if defined(__CUDACC__)
+  (void)alignment;
+
+  void* ptr{};
+  cudaMalloc(&ptr, size);
+
+  return ptr;
+#else
+  return _aligned_malloc(size, alignment);
+#endif
+}
+
+inline void aligned_free(void* ptr) {
+#if defined(__CUDACC__)
+  cudaFree(ptr);
+#else
+  _aligned_free(ptr);
+#endif
+}
+
+struct AlignedDeleter {
+  template <typename T>
+  void operator()(T* ptr) const {
+    aligned_free(ptr);
+  }
+};
+
+} // namespace
+
 template <typename T>
 class AlignedSoA {
 private:
