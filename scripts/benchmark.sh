@@ -3,38 +3,27 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIG_PATH="$PROJECT_ROOT/src/config/config.hpp"
-
-ORIGINAL_CONFIG="$(cat "$CONFIG_PATH")"
-
-restore_config() {
-  printf '%s' "$ORIGINAL_CONFIG" > "$CONFIG_PATH"
-  echo "Restored original config.hpp"
-}
-trap restore_config EXIT
 
 SIZES=(8 16 32 64 128 256 512)
+STEPS=1000
 
-set_grid_size() {
-  local n="$1"
-  sed -i -E \
-    -e "s/std::size_t nx\{[0-9]+\};/std::size_t nx{$n};/" \
-    -e "s/std::size_t ny\{[0-9]+\};/std::size_t ny{$n};/" \
-    -e "s/std::size_t nz\{[0-9]+\};/std::size_t nz{$n};/" \
-    "$CONFIG_PATH"
-}
+echo "Building..."
+"$SCRIPT_DIR/run.sh" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 > /dev/null
+"$SCRIPT_DIR/run.sh" --cuda-off --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 > /dev/null
 
-# Runs the exe 4 times, discards the first, averages the remaining 3.
+# Runs the exe 6 times at the given grid size, discards the first, averages the remaining 5.
 run_average() {
   local exe_path="$1"
+  local size="$2"
   local times=()
-  for i in 1 2 3 4; do
+  for i in 1 2 3 4 5 6; do
     local out
-    out="$("$exe_path")"
+    out="$("$exe_path" --nx "$size" --ny "$size" --nz "$size" --steps "$STEPS" --output-interval 0)"
     local ms="${out%ms}"
     times+=("$ms")
   done
-  awk -v a="${times[1]}" -v b="${times[2]}" -v c="${times[3]}" 'BEGIN { printf "%.10f", (a+b+c)/3 }'
+  awk -v a="${times[1]}" -v b="${times[2]}" -v c="${times[3]}" -v d="${times[4]}" -v e="${times[5]}" \
+    'BEGIN { printf "%.10f", (a+b+c+d+e)/5 }'
 }
 
 # Rounds a value to 3 significant figures.
@@ -54,13 +43,9 @@ declare -a SUMMARY=()
 
 for size in "${SIZES[@]}"; do
   echo "=== Grid size: ${size}^3 ==="
-  set_grid_size "$size"
 
-  "$SCRIPT_DIR/run.sh" > /dev/null
-  "$SCRIPT_DIR/run.sh" --cuda-off > /dev/null
-
-  gpu_avg="$(run_average "$PROJECT_ROOT/build/heat_solver.exe")"
-  cpu_avg="$(run_average "$PROJECT_ROOT/build-nocuda/heat_solver.exe")"
+  gpu_avg="$(run_average "$PROJECT_ROOT/build/heat_solver.exe" "$size")"
+  cpu_avg="$(run_average "$PROJECT_ROOT/build-nocuda/heat_solver.exe" "$size")"
   speedup="$(awk -v c="$cpu_avg" -v g="$gpu_avg" 'BEGIN { printf "%.10f", c/g }')"
 
   cpu_fmt="$(format_sig3 "$cpu_avg")"

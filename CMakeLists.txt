@@ -23,6 +23,7 @@ endif()
 
 add_executable(heat_solver
   src/main.cpp
+  src/config/config.cpp
   src/grid/grid.cu
   src/simulation/simulation.cu
   src/integrator/integrator.cu

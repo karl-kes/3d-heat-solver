@@ -1,27 +1,25 @@
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$configPath = Join-Path $projectRoot 'src\config\config.hpp'
-$originalConfig = Get-Content $configPath -Raw
 
 $sizes = @(8, 16, 32, 64, 128, 256, 512)
+$steps = 1000
 $results = @()
 
-function Set-GridSize($n) {
-  $content = Get-Content $configPath -Raw
-  $content = $content -replace 'std::size_t nx\{\d+\};', "std::size_t nx{$n};"
-  $content = $content -replace 'std::size_t ny\{\d+\};', "std::size_t ny{$n};"
-  $content = $content -replace 'std::size_t nz\{\d+\};', "std::size_t nz{$n};"
-  Set-Content -Path $configPath -Value $content -NoNewline
-}
+Write-Host "Building..." -ForegroundColor Cyan
+& "$PSScriptRoot\run.ps1" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "CUDA build failed" }
 
-function Run-Average($exePath) {
+& "$PSScriptRoot\run.ps1" -CudaOff --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "No-CUDA build failed" }
+
+function Run-Average($exePath, $size) {
   $times = @()
-  for ($i = 0; $i -lt 4; $i++) {
-    $out = & $exePath
+  for ($i = 0; $i -lt 6; $i++) {
+    $out = & $exePath --nx $size --ny $size --nz $size --steps $steps --output-interval 0
     $ms = [double]($out -replace 'ms', '')
     $times += $ms
   }
-  # discard first run, average remaining 3
-  $kept = $times[1..3]
+  # discard first run, average remaining 5
+  $kept = $times[1..5]
   $avg = ($kept | Measure-Object -Average).Average
   return $avg
 }
@@ -34,33 +32,21 @@ function Format-Sig3($value) {
   return [math]::Round($value, $decimals).ToString("F$decimals")
 }
 
-try {
-  foreach ($size in $sizes) {
-    Write-Host "=== Grid size: ${size}^3 ===" -ForegroundColor Cyan
-    Set-GridSize $size
+foreach ($size in $sizes) {
+  Write-Host "=== Grid size: ${size}^3 ===" -ForegroundColor Cyan
 
-    & "$PSScriptRoot\run.ps1" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "CUDA build failed at size $size" }
+  $gpuAvg = Run-Average "$projectRoot\build\heat_solver.exe" $size
+  $cpuAvg = Run-Average "$projectRoot\build-nocuda\heat_solver.exe" $size
+  $speedup = $cpuAvg / $gpuAvg
 
-    & "$PSScriptRoot\run.ps1" -CudaOff | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "No-CUDA build failed at size $size" }
-
-    $gpuAvg = Run-Average "$projectRoot\build\heat_solver.exe"
-    $cpuAvg = Run-Average "$projectRoot\build-nocuda\heat_solver.exe"
-    $speedup = $cpuAvg / $gpuAvg
-
-    $results += [PSCustomObject]@{
-      Size    = "$size^3"
-      CPU_ms  = Format-Sig3 $cpuAvg
-      GPU_ms  = Format-Sig3 $gpuAvg
-      Speedup = Format-Sig3 $speedup
-    }
-
-    Write-Host "CPU: $(Format-Sig3 $cpuAvg) ms | GPU: $(Format-Sig3 $gpuAvg) ms | Speedup: $(Format-Sig3 $speedup)x"
+  $results += [PSCustomObject]@{
+    Size    = "$size^3"
+    CPU_ms  = Format-Sig3 $cpuAvg
+    GPU_ms  = Format-Sig3 $gpuAvg
+    Speedup = Format-Sig3 $speedup
   }
-} finally {
-  Set-Content -Path $configPath -Value $originalConfig -NoNewline
-  Write-Host "Restored original config.hpp" -ForegroundColor Yellow
+
+  Write-Host "CPU: $(Format-Sig3 $cpuAvg) ms | GPU: $(Format-Sig3 $gpuAvg) ms | Speedup: $(Format-Sig3 $speedup)x"
 }
 
 Write-Host ""

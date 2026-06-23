@@ -27,7 +27,7 @@ inline void* backend_alloc(std::size_t alignment, std::size_t size) {
 
 inline void backend_free(void* ptr) {
 #if defined(__CUDACC__)
-  cudaFree(ptr); // unchecked: deleters run during unwinding and must not throw
+  cudaFree(ptr);
 #elif defined(_MSC_VER)
   _aligned_free(ptr);
 #else

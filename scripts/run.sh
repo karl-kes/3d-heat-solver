@@ -2,10 +2,14 @@
 set -euo pipefail
 
 CUDA_FLAG=ON
+FORWARDED_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --cuda-off|-cuda-off)
       CUDA_FLAG=OFF
+      ;;
+    *)
+      FORWARDED_ARGS+=("$arg")
       ;;
   esac
 done
@@ -26,4 +30,4 @@ cmd /c "\"$VCVARS\" && cmake -S . -B $BUILD_DIR -G Ninja -DHEAT_SOLVER_ENABLE_CU
 
 echo "Built: $PROJECT_ROOT/$BUILD_DIR/heat_solver.exe"
 
-"$PROJECT_ROOT/$BUILD_DIR/heat_solver.exe"
+"$PROJECT_ROOT/$BUILD_DIR/heat_solver.exe" "${FORWARDED_ARGS[@]}"

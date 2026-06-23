@@ -3,6 +3,7 @@ param(
 )
 
 $cudaOff = $CudaOff -or ($args -contains '--cuda-off') -or ($args -contains '-cuda-off')
+$forwardedArgs = $args | Where-Object { $_ -ne '--cuda-off' -and $_ -ne '-cuda-off' }
 
 $buildDir = if ($cudaOff) { 'build-nocuda' } else { 'build' }
 $cudaFlag = if ($cudaOff) { 'OFF' } else { 'ON' }
@@ -16,7 +17,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "Build failed with exit code $LASTEXITCODE" }
   Write-Host "Built: $projectRoot\$buildDir\heat_solver.exe"
 
-  & "$projectRoot\$buildDir\heat_solver.exe"
+  & "$projectRoot\$buildDir\heat_solver.exe" @forwardedArgs
   if ($LASTEXITCODE -ne 0) { throw "Run failed with exit code $LASTEXITCODE" }
 } finally {
   Pop-Location

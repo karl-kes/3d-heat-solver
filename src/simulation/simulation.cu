@@ -113,7 +113,7 @@ void Simulation::run() {
   const bool enable_vtk{output_interval_ > 0};
   for (std::size_t step{}; step < total_steps_; ++step) {
     const bool output{
-      enable_vtk &&
+      enable_vtk           &&
       output_interval_ > 0 &&
       step % output_interval_ == 0
     };

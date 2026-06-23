@@ -3,8 +3,8 @@
 
 #include <iostream>
 
-int main() {
-  Config cfg{};
+int main(int argc, char** argv) {
+  const Config cfg{Config::parse(argc, argv)};
   Simulation sim{cfg};
 
   Timer timer{};
