@@ -3,7 +3,7 @@ project(heat_solver LANGUAGES CXX)
 
 option(HEAT_SOLVER_ENABLE_CUDA "Enable CUDA acceleration if a CUDA compiler is available" ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(HEAT_SOLVER_CUDA OFF)
@@ -12,7 +12,7 @@ if(HEAT_SOLVER_ENABLE_CUDA)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
       set(CMAKE_CUDA_ARCHITECTURES native)
@@ -73,10 +73,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(HEAT_SOLVER_ARCH_FLAG "")
   endif()
 
+  set(HEAT_SOLVER_CUDA_XCOMPILE "-Xcompiler=/openmp:experimental,/W4,/WX,/wd4849,/wd4211")
+  if(HEAT_SOLVER_ARCH_FLAG)
+    string(APPEND HEAT_SOLVER_CUDA_XCOMPILE ",${HEAT_SOLVER_ARCH_FLAG}")
+  endif()
+
   target_compile_options(heat_solver PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:/openmp:experimental /W4 /WX /wd4849 ${HEAT_SOLVER_ARCH_FLAG}>
     $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<CONFIG:Debug>>>:/O2>
-    $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${HEAT_SOLVER_CUDA}>>:-Xcompiler=/openmp:experimental>
+    $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${HEAT_SOLVER_CUDA}>>:${HEAT_SOLVER_CUDA_XCOMPILE}>
+    $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<BOOL:${HEAT_SOLVER_CUDA}>,$<NOT:$<CONFIG:Debug>>>:-O3>
   )
 else()
   find_package(OpenMP REQUIRED)
@@ -86,7 +92,8 @@ else()
   )
   if(HEAT_SOLVER_CUDA)
     target_compile_options(heat_solver PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp>
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fopenmp,-Wall,-Wextra,-Werror,-march=native>
+      $<$<AND:$<COMPILE_LANGUAGE:CUDA>,$<NOT:$<CONFIG:Debug>>>:-O3>
     )
   endif()
 endif()

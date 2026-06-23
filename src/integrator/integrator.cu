@@ -14,7 +14,8 @@ ExplicitEuler::ExplicitEuler(const Config& config)
 namespace {
 
 #if defined(__CUDACC__)
-__global__ void gpuBoundaryConditionKernel(
+__global__
+void gpuBoundaryConditionKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
   float* RESTRICT u_new
@@ -53,7 +54,8 @@ __global__ void gpuBoundaryConditionKernel(
   u_new[top_ghost] = u_new[top_inner];
 }
 
-__global__ void gpuIntegrateGridKernel(
+__global__
+void gpuIntegrateGridKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
   float inv_dx_sq, float inv_dy_sq, float inv_dz_sq,
@@ -207,12 +209,14 @@ void ExplicitEuler::integrate(const Grid& old_grid, Grid& new_grid) {
     old_grid.field(),
     new_grid.field()
   );
-  
+  CUDA_CHECK(cudaGetLastError());
+
   gpuBoundaryConditionKernel<<<blocks, threads>>>(
     old_grid.nx(), old_grid.ny(), old_grid.nz(),
     old_grid.p_nx(), old_grid.p_ny(),
     new_grid.field()
   );
+  CUDA_CHECK(cudaGetLastError());
 #else
   cpuIntegrateGridKernel(
     old_grid.nx(), old_grid.ny(), old_grid.nz(),

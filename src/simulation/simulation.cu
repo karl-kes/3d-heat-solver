@@ -15,7 +15,8 @@ Simulation::Simulation(const Config& config)
 namespace {
 
 #if defined(__CUDACC__)
-__global__ void gpuInitializeGridKernel(
+__global__
+void gpuInitializeGridKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
   float* RESTRICT u
@@ -95,6 +96,7 @@ void Simulation::initialize() {
     grid_a_.p_nx(), grid_a_.p_ny(),
     grid_a_.field()
   );
+  CUDA_CHECK(cudaGetLastError());
 #else
   cpuInitializeGridKernel(
     grid_a_.nx(), grid_a_.ny(), grid_a_.nz(),
@@ -121,9 +123,9 @@ void Simulation::run() {
     integrator_->integrate(*curr_grid, *next_grid);
     std::swap(curr_grid, next_grid);
   }
-  if(enable_vtk) { vtk::write(*curr_grid, total_steps_); }
+  if (enable_vtk) { vtk::write(*curr_grid, total_steps_); }
 
   #if defined(__CUDACC__)
-    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaDeviceSynchronize());
   #endif
 }

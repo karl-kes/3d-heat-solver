@@ -1,10 +1,29 @@
 #pragma once
 
 #include <cstddef>
+#include <concepts>
+#include <type_traits>
+
+template <typename T>
+concept arithmetic = std::is_arithmetic_v<T>;
 
 #if defined(__CUDACC__)
   #include <cuda_runtime.h>
+  #include <stdexcept>
+  #include <string>
   #define RESTRICT __restrict__
+
+  #define CUDA_CHECK(call) \
+    do { \
+      const cudaError_t cuda_check_err__{(call)}; \
+      if (cuda_check_err__ != cudaSuccess) { \
+        throw std::runtime_error( \
+          std::string("CUDA error at " __FILE__ ":") + \
+          std::to_string(__LINE__) + ": " + \
+          cudaGetErrorString(cuda_check_err__) \
+        ); \
+      } \
+    } while (0)
 #elif defined(__GNUC__) || defined(__clang__)
   #include <malloc.h>
   #define RESTRICT __restrict__
@@ -29,7 +48,7 @@
   #define ASSUME_ALIGNED(ptr, align) \
     __assume((reinterpret_cast<uintptr_t>(ptr) % (align)) == 0)
 #else
-  #define ASSUME_ALIGNED(ptr, align) ((void)0)
+  #define ASSUME_ALIGNED(ptr, align) (static_cast<void>(0))
 #endif
 
 #if defined(__AVX512F__)
