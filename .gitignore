@@ -39,3 +39,25 @@ compile_commands.json
 
 # Windows
 Thumbs.db
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bbl-SAVE-ERROR
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.idx
+*.ilg
+*.ind
+*.lof
+*.lot
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.tex.bak
+*.synctex(busy)
+docs/figures/*.pdf

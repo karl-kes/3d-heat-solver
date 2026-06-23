@@ -7,6 +7,28 @@ C++ solver for the heat equation in 3D, using an explicit (forward Euler) finite
 
 Both backends live in the same `.cu`/`.cuh` files. CUDA support is optional; the project builds and runs fine with a plain C++ compiler if no CUDA toolchain is present.
 
+## Paper
+
+[`docs/paper.pdf`](docs/paper.pdf) is a short IEEE-style writeup of the project: the numerical method, the dual-backend design, the verification methodology, a real GPU boundary-condition bug it caught, and the performance results below with discussion.
+
+To rebuild it: `pip install -r docs/requirements.txt && python docs/generate_plots.py`, then `pdflatex paper.tex` (twice, to resolve references) from `docs/`.
+
+## Performance
+
+Forward Euler integration + boundary update, 1000 steps, measured on this machine, average of 5 runs (6 total, first discarded as warm-up) via [`scripts/benchmark.ps1`](scripts/benchmark.ps1):
+
+| Grid size | CPU (OpenMP/SIMD) | GPU (CUDA) | Speedup |
+|-----------|-------------------|------------|---------|
+| 8³        | ~4.14 ms          | ~32.2 ms   | ~0.13x  |
+| 16³       | ~13.8 ms          | ~22.7 ms   | ~0.61x  |
+| 32³       | ~83.7 ms          | ~26.7 ms   | ~3.13x  |
+| 64³       | ~535 ms           | ~31.8 ms   | ~16.8x  |
+| 128³      | ~3805 ms          | ~62.0 ms   | ~61.4x  |
+| 256³      | ~29856 ms         | ~446 ms    | ~67.0x  |
+| 512³      | ~225321 ms        | ~3336 ms   | ~67.6x  |
+
+At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs and settles around 60-70x as the GPU's bandwidth advantage takes over.
+
 ## Requirements
 
 - CMake 3.24+
@@ -61,22 +83,6 @@ Run with `--help` to see all options:
 ```
 
 `dt` isn't configurable; it's always derived from `alpha`/`dx`/`dy`/`dz` via the CFL stability limit, so the simulation can't be pushed into an unstable regime from the CLI.
-
-## Performance
-
-Forward Euler integration + boundary update, 1000 steps, measured on this machine, average of 5 runs (6 total, first discarded as warm-up) via [`scripts/benchmark.ps1`](scripts/benchmark.ps1):
-
-| Grid size | CPU (OpenMP/SIMD) | GPU (CUDA) | Speedup |
-|-----------|-------------------|------------|---------|
-| 8³        | ~4.14 ms          | ~32.2 ms   | ~0.13x  |
-| 16³       | ~13.8 ms          | ~22.7 ms   | ~0.61x  |
-| 32³       | ~83.7 ms          | ~26.7 ms   | ~3.13x  |
-| 64³       | ~535 ms           | ~31.8 ms   | ~16.8x  |
-| 128³      | ~3805 ms          | ~62.0 ms   | ~61.4x  |
-| 256³      | ~29856 ms         | ~446 ms    | ~67.0x  |
-| 512³      | ~225321 ms        | ~3336 ms   | ~67.6x  |
-
-At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs and settles around 60-70x as the GPU's bandwidth advantage takes over.
 
 ## Testing
 
