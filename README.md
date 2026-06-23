@@ -68,14 +68,15 @@ Forward Euler integration + boundary update, 1000 steps, measured on this machin
 
 | Grid size | CPU (OpenMP/SIMD) | GPU (CUDA) | Speedup |
 |-----------|-------------------|------------|---------|
-| 8³        | ~3.62 ms          | ~28.2 ms   | ~0.13x  |
-| 16³       | ~12.8 ms          | ~31.2 ms   | ~0.41x  |
-| 32³       | ~73.9 ms          | ~29.5 ms   | ~2.51x  |
-| 64³       | ~530 ms           | ~37.2 ms   | ~14.2x  |
-| 128³      | ~4073 ms          | ~61.9 ms   | ~65.8x  |
-| 256³      | ~30011 ms         | ~445 ms    | ~67.5x  |
+| 8³        | ~4.14 ms          | ~32.2 ms   | ~0.13x  |
+| 16³       | ~13.8 ms          | ~22.7 ms   | ~0.61x  |
+| 32³       | ~83.7 ms          | ~26.7 ms   | ~3.13x  |
+| 64³       | ~535 ms           | ~31.8 ms   | ~16.8x  |
+| 128³      | ~3805 ms          | ~62.0 ms   | ~61.4x  |
+| 256³      | ~29856 ms         | ~446 ms    | ~67.0x  |
+| 512³      | ~225321 ms        | ~3336 ms   | ~67.6x  |
 
-At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs into the 60-70x range as the GPU's bandwidth advantage takes over.
+At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs and settles around 60-70x as the GPU's bandwidth advantage takes over.
 
 ## Testing
 

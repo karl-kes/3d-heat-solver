@@ -8,8 +8,6 @@
 #include <new>
 #include <cstdlib>
 
-namespace {
-
 inline void* backend_alloc(std::size_t alignment, std::size_t size) {
 #if defined(__CUDACC__)
   static_cast<void>(alignment);
@@ -41,8 +39,6 @@ struct SoADeleter {
     backend_free(ptr);
   }
 };
-
-} // namespace
 
 template <arithmetic T>
 class AlignedSoA {

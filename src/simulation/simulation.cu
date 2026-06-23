@@ -4,11 +4,11 @@
 #include <cmath>
 
 Simulation::Simulation(const Config& config)
-: grid_a_{config}
+: total_steps_{config.total_steps}
+, output_interval_{config.output_interval}
+, grid_a_{config}
 , grid_b_{config}
-, integrator_{std::make_unique<ExplicitEuler>(config)}
-, total_steps_{config.total_steps}
-, output_interval_{config.output_interval} {
+, integrator_{std::make_unique<ExplicitEuler>(config)} {
   initialize();
 }
 
