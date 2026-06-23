@@ -27,6 +27,8 @@ public:
   [[nodiscard]] float* field() { return data_[U]; }
   [[nodiscard]] const float* field() const { return data_[U]; }
 
+  void copy_to_host(float* dst) const;
+
   [[nodiscard]] std::size_t nx() const { return nx_; }
   [[nodiscard]] std::size_t ny() const { return ny_; }
   [[nodiscard]] std::size_t nz() const { return nz_; }

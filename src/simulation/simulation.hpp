@@ -13,13 +13,16 @@ private:
 
   Grid grid_a_;
   Grid grid_b_;
+  Grid* current_grid_{&grid_a_};
   std::unique_ptr<Integrator> integrator_;
 
 public:
   Simulation(const Config& config);
 
   void run();
-  
+
+  [[nodiscard]] const Grid& grid() const { return *current_grid_; }
+
 private:
   void initialize();
 };

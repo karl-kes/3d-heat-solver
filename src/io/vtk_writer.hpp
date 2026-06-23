@@ -56,17 +56,11 @@ inline void write(const Grid& grid, std::size_t step) {
       << "SCALARS temperature float 1\n"
       << "LOOKUP_TABLE default\n";
 
-#if defined(__CUDACC__)
   const std::size_t padded_total{grid.p_nx() * grid.p_ny() * grid.p_nz()};
   std::vector<float> host_field(padded_total);
-  CUDA_CHECK(cudaMemcpy(
-    host_field.data(), grid.field(),
-    padded_total * sizeof(float), cudaMemcpyDeviceToHost
-  ));
+  grid.copy_to_host(host_field.data());
   const float* u{host_field.data()};
-#else
-  const float* u{grid.field()};
-#endif
+
   std::vector<uint32_t> row(nx);
 
   for (std::size_t k{}; k < nz; ++k) {

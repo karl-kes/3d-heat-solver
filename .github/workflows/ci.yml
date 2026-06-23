@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libomp-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DHEAT_SOLVER_ENABLE_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  build-cuda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.18
+        id: cuda-toolkit
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libomp-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DHEAT_SOLVER_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75
+
+      - name: Build
+        run: cmake --build build

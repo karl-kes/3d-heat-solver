@@ -107,8 +107,8 @@ void Simulation::initialize() {
 }
 
 void Simulation::run() {
-  auto curr_grid{&grid_a_};
-  auto next_grid{&grid_b_};
+  auto curr_grid{current_grid_};
+  auto next_grid{(curr_grid == &grid_a_) ? &grid_b_ : &grid_a_};
 
   const bool enable_vtk{output_interval_ > 0};
   for (std::size_t step{}; step < total_steps_; ++step) {
@@ -128,4 +128,6 @@ void Simulation::run() {
   #if defined(__CUDACC__)
     CUDA_CHECK(cudaDeviceSynchronize());
   #endif
+
+  current_grid_ = curr_grid;
 }
