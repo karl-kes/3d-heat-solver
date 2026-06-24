@@ -56,7 +56,7 @@ inline void write(const Grid& grid, std::size_t step) {
       << "SCALARS temperature float 1\n"
       << "LOOKUP_TABLE default\n";
 
-  const std::size_t padded_total{grid.p_nx() * grid.p_ny() * grid.p_nz()};
+  const std::size_t padded_total{grid.total_size()};
   std::vector<float> host_field(padded_total);
   grid.copy_to_host(host_field.data());
   const float* u{host_field.data()};

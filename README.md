@@ -11,7 +11,7 @@ Both backends live in the same `.cu`/`.cuh` files. CUDA support is optional; the
 
 [`docs/paper.pdf`](docs/paper.pdf) is a short IEEE-style writeup of the project: the numerical method, the dual-backend design, the verification methodology, a real GPU boundary-condition bug it caught, and the performance results below with discussion.
 
-To rebuild it: `pip install -r docs/requirements.txt && python docs/generate_plots.py`, then `pdflatex paper.tex` (twice, to resolve references) from `docs/`.
+To rebuild it: `pip install -r docs/requirements.txt`, then `python docs/generate_plots.py`, `python docs/convergence.py`, `tests/convergence.cpp`, and then `pdflatex paper.tex` (twice, to resolve references) from `docs/`.
 
 ## Performance
 

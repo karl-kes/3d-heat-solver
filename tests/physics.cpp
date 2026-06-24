@@ -42,8 +42,7 @@ int main() {
   const std::vector<float> field{field_snapshot(sim.grid())};
   const Grid& grid{sim.grid()};
 
-  // Check 1: value at the grid point nearest the center vs. the analytic
-  // Gaussian-diffusion solution u(r, t) = amplitude * (sigma0/sigma_t)^3 * exp(-r^2 / (2*sigma_t^2))
+  // Check 1: center value vs. u(r,t) = amplitude * (sigma0/sigma_t)^3 * exp(-r^2/(2*sigma_t^2))
   const float center_x{0.5f * static_cast<float>(cfg.nx - 1)};
   const float center_y{0.5f * static_cast<float>(cfg.ny - 1)};
   const float center_z{0.5f * static_cast<float>(cfg.nz - 1)};
@@ -91,9 +90,7 @@ int main() {
     return 1;
   }
 
-  // Check 3: insulated boundary (du/dn = 0) ghost cells must exactly mirror
-  // their adjacent interior cell, since the boundary kernel applies this as a
-  // direct copy with no arithmetic.
+  // Check 3: du/dn = 0 -- ghost cells must exactly mirror the adjacent interior cell.
   for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
     for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
       const float left_ghost{field[grid.idx(0, j, k)]};

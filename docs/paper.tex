@@ -33,17 +33,17 @@
 
 \begin{abstract}
 We present a C++/CUDA solver for the three-dimensional heat equation using an explicit
-(forward Euler) finite-difference scheme on a structured grid. The implementation
-supports two execution backends, an OpenMP/SIMD-vectorized CPU path and a CUDA GPU
-path, compiled from the same source tree and dispatched at compile time. We describe
-the numerical method, the memory layout and parallelization strategy for each backend,
-and a verification methodology that checks the simulation against a closed-form
-analytic solution, a conservation law, and an exact boundary-condition invariant,
-independently on both backends. This verification caught a genuine correctness defect
-in the original GPU boundary kernel, which we describe along with its fix. We report
-benchmark results from $8^3$ to $512^3$ grid cells, showing a crossover from
-CPU-favored to GPU-favored execution between $16^3$ and $32^3$ cells, and a speedup
-plateau around $65$--$68\times$ once both backends become memory-bandwidth bound.
+(forward Euler) finite-difference scheme, with CPU (OpenMP/SIMD) and CUDA GPU backends
+compiled from the same source tree and selected at compile time. We verify both
+backends independently against a closed-form analytic solution, a conservation law, an
+exact boundary-condition invariant, and a grid-convergence study, rather than treating
+performance as a proxy for correctness. The verification caught a genuine defect in the
+original GPU boundary kernel and revealed an invalid initial convergence-study design;
+the corrected study recovers the expected second-order accuracy. We report benchmark
+results from $8^3$ to $512^3$ grid cells on stated hardware, with an analytic
+bandwidth argument supporting the memory-bound conclusion in place of an unmeasured
+assertion, showing a crossover from CPU-favored to GPU-favored execution between
+$16^3$ and $32^3$ cells and a speedup plateau around $65$--$68\times$.
 \end{abstract}
 
 \section{Introduction}
@@ -52,20 +52,41 @@ The heat equation is a standard model problem for explicit time-stepping
 finite-difference methods, and a common first project for learning GPU programming: the
 update rule is a simple, highly parallel stencil, but a correct implementation still
 requires getting boundary conditions, stability, and memory layout right on both a
-CPU and a GPU backend. This paper documents one such implementation, with an emphasis
-on verifying correctness rather than only reporting a speedup number. A simulation
-that runs fast but computes the wrong answer is not useful; we treat the performance
-results in Section~\ref{sec:perf} as meaningful only because Section~\ref{sec:verification}
-independently establishes that both backends solve the stated equation correctly.
+CPU and a GPU backend. This paper presents and verifies such an implementation, with
+an emphasis on verifying correctness rather than only reporting a speedup number. A
+simulation that runs fast but computes the wrong answer is not useful; we treat the
+performance results in Section~\ref{sec:perf} as meaningful only because
+Section~\ref{sec:verification} independently establishes that both backends solve the
+stated equation correctly.
+
+The contributions of this work are:
+\begin{itemize}
+  \item A dual-backend (OpenMP/SIMD CPU, CUDA GPU) solver for the 3D heat equation
+    built from one source tree, with the backend selected at compile time.
+  \item A verification methodology combining an analytic-solution check, a
+    conservation check, an exact boundary-condition invariant, and a grid-convergence
+    study (Section~\ref{sec:convergence}, including a corrected mesh-refinement scheme
+    after an initial attempt was found to conflate resolution with problem
+    difficulty), applied independently to both backends.
+  \item Identification and correction of a genuine GPU boundary-kernel defect that
+    this verification methodology caught and a coarser check would have missed
+    (Section~\ref{sec:bug}).
+  \item A performance characterization from $8^3$ to $512^3$ cells on stated hardware,
+    with an analytic argument for the memory-bound conclusion rather than an
+    unsupported assertion (Section~\ref{sec:perf}).
+\end{itemize}
 
 \subsection{Related work}
 
 GPU finite-difference stencil computation is well studied; Micikevicius
 \cite{micikevicius2009} describes shared-memory tiling and multi-GPU strategies for
 3D finite-difference stencils on CUDA hardware, in the context of seismic modeling.
-The present work targets a single GPU and does not implement shared-memory tiling
-(Section~\ref{sec:limitations}), but the GPU kernel design follows the same
-global-memory stencil pattern that work uses as its un-tiled baseline.
+That work targeted Tesla/Fermi-era GPUs, which had no general-purpose L1 cache for
+global memory, making explicit tiling necessary to capture neighbor reuse at all. The
+present work targets a single GPU and does not implement shared-memory tiling
+(Section~\ref{sec:limitations}); instead it relies on the much larger L1/L2 cache
+hierarchy of modern hardware (Ampere, here) to capture some of that reuse implicitly,
+consistent with the cache-reuse factor inferred in Section~\ref{sec:perf}.
 
 \section{Mathematical Formulation}
 
@@ -175,10 +196,12 @@ on benchmark performance as a proxy for correctness. Because the CPU and GPU bac
 are selected at compile time, a single binary cannot
 run both, so direct cross-binary comparison is not a natural fit. Instead, the same
 test suite runs independently against the analytic solution in both build
-configurations; if both backends agree with the known-correct answer within tolerance,
-they are transitively in agreement with each other, without needing a dump-and-diff
-mechanism. Three checks are used, on a small ($32^3$) grid with an isotropic Gaussian
-initial condition.
+configurations; if both backends agree with the known-correct answer within a
+tolerance $\epsilon$, the triangle inequality bounds their mutual disagreement by at
+most $2\epsilon$, without needing a dump-and-diff mechanism. Four checks are used:
+three on a small ($32^3$) grid with an isotropic
+Gaussian initial condition, and a fourth (Section~\ref{sec:convergence}) sweeping
+multiple grid sizes.
 
 \subsection{Analytic solution check}
 
@@ -209,6 +232,61 @@ as a literal copy with no arithmetic, this is checked for \emph{exact} equality
 (no tolerance) at every one of the six faces after the run. This is the test that
 caught the defect in Section~\ref{sec:bug}.
 
+\subsection{Grid convergence}
+\label{sec:convergence}
+
+The checks above confirm the simulation is close to the analytic solution at one
+resolution; they do not confirm the scheme achieves its \emph{designed} second-order
+spatial accuracy as the mesh is refined. We measured the global $L_2$ relative error
+against the analytic solution over $n \in \{16, 32, 64, 128, 256\}$, evaluated at
+every grid point rather than only the center (a single point can show artificially
+elevated order from symmetry-driven error cancellation).
+
+A first attempt held $\Delta x = 1$ fixed and varied only $n$; this looked like mesh
+refinement but wasn't: the initial condition's width $\sigma_0 = 0.1n$ grew with $n$
+while the simulated time stayed fixed, so the Fourier number
+$\mathrm{Fo} = \alpha t/\sigma_0^2$ shrank as $1/n^2$ -- the blob diffused less at
+each "finer" resolution, a progressively easier target rather than a real accuracy
+test, producing a false order of $3.5$--$5$. Fixing the physical domain and
+$\sigma_0$ instead, and shrinking $\Delta x = L/n$, holds $\mathrm{Fo}$ approximately
+constant ($0.14$--$0.17$) across the sweep and gives the textbook order
+$\approx 2.04$ over $n=16$--$128$ (Table~\ref{tab:convergence}, Fig.~\ref{fig:convergence}).
+We report the fitted order over this range, where the asymptotic second-order regime
+is observed; the order degrades to $1.20$ between $n=128$ and $256$. The CFL limit
+ties $\Delta t \propto \Delta x^2$, so this refinement quadruples the step count at
+each level ($161$ steps at $n=128$, $641$ at $n=256$); accumulating that many
+single-precision increments onto an $O(1)$ field is a plausible source of the
+degradation, though we have not isolated it from the first-order-in-time forward
+Euler term with a controlled (e.g. double-precision) comparison.
+
+Across all refinement levels, CPU and GPU solutions agreed to displayed precision at
+every grid point.
+
+\begin{table}[t]
+\centering
+\caption{Global $L_2$ relative error, fixed-domain refinement.}
+\label{tab:convergence}
+\begin{tabular}{@{}cc@{}}
+\toprule
+$n$ & $L_2$ relative error \\
+\midrule
+16  & $8.30 \times 10^{-3}$ \\
+32  & $1.79 \times 10^{-3}$ \\
+64  & $4.29 \times 10^{-4}$ \\
+128 & $1.19 \times 10^{-4}$ \\
+256 & $5.20 \times 10^{-5}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/convergence.pdf}
+\caption{Global $L_2$ relative error vs. grid size for the invalid self-similar
+sweep and the corrected fixed-domain sweep, with the fitted order for the latter.}
+\label{fig:convergence}
+\end{figure}
+
 \subsection{Continuous integration}
 
 A GitHub Actions pipeline runs the full test suite against the CPU backend on every
@@ -219,6 +297,12 @@ hardware.
 
 \section{Performance Evaluation}
 \label{sec:perf}
+
+\subsection{Experimental setup}
+
+All results were measured on: CPU, AMD Ryzen 5 8500G (6 cores / 12 threads); GPU,
+NVIDIA GeForce RTX 3070, 8\,GB GDDR6 (256-bit bus, spec-sheet peak memory bandwidth
+448\,GB/s, peak FP32 throughput approximately 20.3\,TFLOPS); 16\,GB system RAM.
 
 \begin{table}[t]
 \centering
@@ -255,16 +339,34 @@ $512^3$ & 225{,}321 & 3{,}336 & 67.6$\times$ \\
 \end{figure}
 
 Table~\ref{tab:perf} and Figs.~\ref{fig:runtime}--\ref{fig:speedup} summarize benchmark
-results measured on the development machine. At $8^3$ and $16^3$ cells, fixed CUDA
-kernel-launch overhead (four launches per step: one integration kernel and three
-boundary kernels) exceeds the actual compute, and the CPU backend is faster. The
-crossover occurs between $16^3$ and $32^3$ cells. Past the crossover, speedup grows
-quickly and then plateaus around $65$--$68\times$ from $128^3$ cells onward, consistent
-with both backends becoming memory-bandwidth bound in the roofline sense
-\cite{williams2009}: the per-cell arithmetic intensity of a 7-point stencil is low
-(a handful of flops per two loads and one store), so runtime is dominated by reading
-and writing the field rather than by the floating-point operations themselves, and the
-GPU's much higher memory bandwidth accounts for the plateau ratio.
+results measured on the hardware described above. At $8^3$ and $16^3$
+cells, fixed CUDA kernel-launch overhead (four launches per step: one integration
+kernel and three boundary kernels) exceeds the actual compute, and the CPU backend is
+faster. The crossover occurs between $16^3$ and $32^3$ cells. Past the crossover,
+speedup grows quickly and then plateaus around $65$--$68\times$ from $128^3$ cells
+onward.
+
+\subsection{Bandwidth argument}
+
+We support the memory-bandwidth-bound hypothesis analytically rather than with an
+unmeasured assertion. The integration kernel's arithmetic intensity is fixed by the
+stencil: $16$ floating-point operations and up to $8$ float reads/writes ($32$ bytes)
+per cell update in the naive (uncached) case, giving $\mathrm{AI} \approx 0.5$
+FLOP/byte. The RTX 3070's roofline ridge point is at
+$20.3\,\text{TFLOPS} / 448\,\text{GB/s} \approx 45$ FLOP/byte, two orders of magnitude
+above our $\mathrm{AI}$, which places this kernel firmly in the bandwidth-bound region
+regardless of the achieved fraction of peak bandwidth \cite{williams2009}.
+
+We can also bound the cache-reuse factor without a profiler. At $512^3$ cells, the
+naive $32$ bytes/cell figure implies $4.295 \times 10^9$ bytes moved per integration
+step; dividing by this kernel's share of the measured per-step time
+($3.336\,\text{ms}$, from $3{,}336\,\text{ms}/1000$ steps in Table~\ref{tab:perf})
+gives an implied bandwidth of approximately $1{,}287\,\text{GB/s}$ -- $2.9\times$ the
+RTX 3070's $448\,\text{GB/s}$ spec-sheet peak. Since achieved bandwidth cannot exceed
+peak, this is direct evidence (not an assumption) that L1/L2 cache reuse across the
+7-point stencil's overlapping neighbor reads reduces actual DRAM traffic to well under
+a third of the naive estimate. Direct profiler measurement of the achieved-bandwidth
+percentage is left as future work.
 
 \section{Discussion and Limitations}
 \label{sec:limitations}
@@ -284,13 +386,16 @@ trusted reference implementation).
 
 \section{Conclusion}
 
-We have described and verified a dual-backend explicit finite-difference solver for
-the 3D heat equation. The verification methodology, checking both the CPU and GPU
-backends against a known analytic solution and an exact boundary invariant, found and
-allowed us to fix a real correctness defect in the original GPU boundary kernel that
-performance benchmarking alone did not reveal. With that fix in place, the GPU backend
-is correct on both checks and delivers a $65$--$68\times$ speedup over the
-OpenMP/SIMD CPU backend at grid sizes of $128^3$ and above.
+Verifying both backends independently, rather than trusting a speedup number on its
+own, paid off twice in this work: it caught a real GPU boundary-kernel defect
+(Section~\ref{sec:bug}), and it caught a flawed convergence-study design before that
+flaw could produce a misleadingly clean "order $\approx 4$" result instead of the
+genuine order $\approx 2$ (Section~\ref{sec:convergence}). With those issues resolved,
+the GPU backend passes all verification checks -- the analytic-solution, conservation,
+boundary-invariant, and convergence-order checks alike -- and delivers a
+$65$--$68\times$ speedup over the OpenMP/SIMD CPU backend at grid sizes of $128^3$ and
+above, a result we can now attribute analytically to the kernel's low arithmetic
+intensity ($\approx 0.5$ FLOP/byte) rather than assert without support.
 
 \begin{thebibliography}{9}
 

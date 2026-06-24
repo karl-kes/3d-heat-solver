@@ -3,8 +3,7 @@
 int main() {
   constexpr std::size_t elems_per_align{SIMD_BYTES / sizeof(float)};
 
-  // round_up leaves already-aligned sizes alone, and pads everything else up
-  // to the next multiple of the SIMD alignment
+  // round_up pads up to the next multiple of the SIMD alignment
   if (AlignedSoA<float>::round_up(0) != 0) { return 1; }
   if (AlignedSoA<float>::round_up(elems_per_align) != elems_per_align) { return 1; }
   if (AlignedSoA<float>::round_up(1) != elems_per_align) { return 1; }
