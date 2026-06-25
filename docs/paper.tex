@@ -32,18 +32,16 @@
 \maketitle
 
 \begin{abstract}
-We present a C++/CUDA solver for the three-dimensional heat equation using an explicit
-(forward Euler) finite-difference scheme, with CPU (OpenMP/SIMD) and CUDA GPU backends
-compiled from the same source tree and selected at compile time. We verify both
-backends independently against a closed-form analytic solution, a conservation law, an
-exact boundary-condition invariant, and a grid-convergence study, rather than treating
-performance as a proxy for correctness. The verification caught a genuine defect in the
-original GPU boundary kernel and revealed an invalid initial convergence-study design;
-the corrected study recovers the expected second-order accuracy. We report benchmark
-results from $8^3$ to $512^3$ grid cells on stated hardware, with an analytic
-bandwidth argument supporting the memory-bound conclusion in place of an unmeasured
-assertion, showing a crossover from CPU-favored to GPU-favored execution between
-$16^3$ and $32^3$ cells and a speedup plateau around $65$--$68\times$.
+We present a C++/CUDA solver for the 3D heat equation using explicit (forward Euler)
+finite differences, with CPU (OpenMP/SIMD) and CUDA GPU backends built from one
+source tree and selected at compile time. Both backends are verified independently
+against a closed-form analytic solution, a conservation law, an exact
+boundary-condition invariant, and a grid-convergence study. This caught a genuine GPU
+boundary-kernel defect and an invalid initial convergence-study design; corrected, the
+study recovers the expected second-order accuracy. We report benchmarks from $8^3$ to
+$512^3$ cells on stated hardware, with Nsight Compute measurements confirming the
+memory-bound conclusion directly, showing a CPU/GPU crossover between $16^3$ and
+$32^3$ cells and a speedup plateau around $60$--$68\times$.
 \end{abstract}
 
 \section{Introduction}
@@ -72,8 +70,8 @@ The contributions of this work are:
     this verification methodology caught and a coarser check would have missed
     (Section~\ref{sec:bug}).
   \item A performance characterization from $8^3$ to $512^3$ cells on stated hardware,
-    with an analytic argument for the memory-bound conclusion rather than an
-    unsupported assertion (Section~\ref{sec:perf}).
+    with the memory-bound conclusion confirmed by direct profiler measurement rather
+    than inference alone (Section~\ref{sec:perf}).
 \end{itemize}
 
 \subsection{Related work}
@@ -113,7 +111,7 @@ Time advancement uses explicit (forward) Euler,
   u_{i,j,k}^{t+1} = u_{i,j,k}^{t} + \alpha\,\Delta t \, \nabla^2 u_{i,j,k}^{t}.
 \end{equation}
 This scheme is conditionally stable; von Neumann stability analysis
-\cite{obrien1951} of the 3D case gives the classical Courant--Friedrichs--Lewy (CFL)
+\cite{obrien1950} of the 3D case gives the classical Courant--Friedrichs--Lewy (CFL)
 limit \cite{courant1928}
 \begin{equation}
   \Delta t \leq \frac{1}{2\alpha\left(\Delta x^{-2} + \Delta y^{-2} + \Delta z^{-2}\right)}.
@@ -245,8 +243,8 @@ elevated order from symmetry-driven error cancellation).
 A first attempt held $\Delta x = 1$ fixed and varied only $n$; this looked like mesh
 refinement but wasn't: the initial condition's width $\sigma_0 = 0.1n$ grew with $n$
 while the simulated time stayed fixed, so the Fourier number
-$\mathrm{Fo} = \alpha t/\sigma_0^2$ shrank as $1/n^2$ -- the blob diffused less at
-each "finer" resolution, a progressively easier target rather than a real accuracy
+$\mathrm{Fo} = \alpha t/\sigma_0^2$ shrank as $1/n^2$, so the blob diffused less at
+each ``finer'' resolution, a progressively easier target rather than a real accuracy
 test, producing a false order of $3.5$--$5$. Fixing the physical domain and
 $\sigma_0$ instead, and shrinking $\Delta x = L/n$, holds $\mathrm{Fo}$ approximately
 constant ($0.14$--$0.17$) across the sweep and gives the textbook order
@@ -303,23 +301,27 @@ hardware.
 All results were measured on: CPU, AMD Ryzen 5 8500G (6 cores / 12 threads); GPU,
 NVIDIA GeForce RTX 3070, 8\,GB GDDR6 (256-bit bus, spec-sheet peak memory bandwidth
 448\,GB/s, peak FP32 throughput approximately 20.3\,TFLOPS); 16\,GB system RAM.
+Software: Windows 11; CUDA 13.3.33; MSVC 19.44.35228 (Visual Studio 2022, toolset
+14.44); CMake 4.2.2 with Ninja. Both backends are built with \texttt{-O3} (CUDA and
+the non-MSVC host path) or \texttt{/O2} (MSVC host path) in Release configuration,
+with OpenMP enabled for the CPU backend.
 
 \begin{table}[t]
 \centering
-\caption{Runtime for 1000 forward-Euler steps, averaged over 5 of 6 runs (first
-discarded as warm-up).}
+\caption{Runtime for 1000 forward-Euler steps: mean $\pm$ sample standard
+deviation over 5 of 6 runs (first discarded as warm-up).}
 \label{tab:perf}
 \begin{tabular}{@{}lrrr@{}}
 \toprule
 Grid size & CPU (ms) & GPU (ms) & Speedup \\
 \midrule
-$8^3$   & 4.14    & 32.2 & 0.13$\times$ \\
-$16^3$  & 13.8    & 22.7 & 0.61$\times$ \\
-$32^3$  & 83.7    & 26.7 & 3.13$\times$ \\
-$64^3$  & 535     & 31.8 & 16.8$\times$ \\
-$128^3$ & 3{,}805 & 62.0 & 61.4$\times$ \\
-$256^3$ & 29{,}856 & 446 & 67.0$\times$ \\
-$512^3$ & 225{,}321 & 3{,}336 & 67.6$\times$ \\
+$8^3$   & $3.40 \pm 0.70$   & $25.5 \pm 5.9$ & $0.13 \pm 0.04\times$ \\
+$16^3$  & $12.6 \pm 0.53$   & $34.4 \pm 6.2$ & $0.37 \pm 0.07\times$ \\
+$32^3$  & $71.8 \pm 1.4$    & $26.5 \pm 6.4$ & $2.71 \pm 0.66\times$ \\
+$64^3$  & $518 \pm 23$      & $28.4 \pm 1.8$ & $18.2 \pm 1.4\times$ \\
+$128^3$ & $3{,}768 \pm 50$  & $62.6 \pm 0.6$ & $60.2 \pm 1.0\times$ \\
+$256^3$ & $28{,}910 \pm 119$ & $444 \pm 0.2$ & $65.1 \pm 0.3\times$ \\
+$512^3$ & $226{,}716 \pm 900$ & $3{,}339 \pm 1.0$ & $67.9 \pm 0.3\times$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -342,31 +344,91 @@ Table~\ref{tab:perf} and Figs.~\ref{fig:runtime}--\ref{fig:speedup} summarize be
 results measured on the hardware described above. At $8^3$ and $16^3$
 cells, fixed CUDA kernel-launch overhead (four launches per step: one integration
 kernel and three boundary kernels) exceeds the actual compute, and the CPU backend is
-faster. The crossover occurs between $16^3$ and $32^3$ cells. Past the crossover,
-speedup grows quickly and then plateaus around $65$--$68\times$ from $128^3$ cells
-onward.
+faster. This is also why the GPU's relative run-to-run variance is largest in this
+small-grid range ($18$--$24\%$ for $8^3$--$32^3$, Table~\ref{tab:perf}): runtime is
+dominated by launch overhead and timer granularity rather than by the stencil
+computation itself, and that variance drops sharply from $64^3$ onward (to
+$1\%$ or less by $128^3$) once the actual computation dominates. The crossover
+occurs between $16^3$ and $32^3$ cells. Past the crossover,
+speedup grows quickly and then plateaus around $60$--$68\times$ from $128^3$ cells
+onward. This plateau coincides with achieved DRAM throughput approaching $90\%$ of
+peak (Section~\ref{sec:bandwidth}), indicating that further speedup is limited by
+memory bandwidth rather than available compute resources.
 
-\subsection{Bandwidth argument}
+\subsection{Bandwidth and occupancy measurements}
+\label{sec:bandwidth}
 
-We support the memory-bandwidth-bound hypothesis analytically rather than with an
-unmeasured assertion. The integration kernel's arithmetic intensity is fixed by the
-stencil: $16$ floating-point operations and up to $8$ float reads/writes ($32$ bytes)
-per cell update in the naive (uncached) case, giving $\mathrm{AI} \approx 0.5$
-FLOP/byte. The RTX 3070's roofline ridge point is at
-$20.3\,\text{TFLOPS} / 448\,\text{GB/s} \approx 45$ FLOP/byte, two orders of magnitude
-above our $\mathrm{AI}$, which places this kernel firmly in the bandwidth-bound region
-regardless of the achieved fraction of peak bandwidth \cite{williams2009}.
+The integration kernel's naive operational intensity \cite{williams2009}, the ratio
+of floating-point operations to DRAM bytes moved assuming no cache reuse (as opposed
+to arithmetic intensity, which can include cache traffic), is fixed by the stencil:
+$16$ floating-point operations and up to $8$ float reads/writes ($32$ bytes) per cell
+update, giving $\mathrm{OI} \approx 0.5$ FLOP/byte. The RTX 3070's roofline ridge
+point is at $20.3\,\text{TFLOPS} / 448\,\text{GB/s} \approx 45$ FLOP/byte, two orders
+of magnitude above our $\mathrm{OI}$, which places this kernel firmly in the
+bandwidth-bound region of the roofline model regardless of the achieved fraction of
+peak bandwidth. Fig.~\ref{fig:roofline} plots this directly: the kernel's fixed
+$\mathrm{OI}=0.5$ sits far left of the ridge point, and its achieved performance
+(computed from $\mathrm{OI}$ and the \emph{measured} DRAM bandwidth below, not an
+independently measured FLOP count) climbs toward, but never reaches, the ceiling the
+memory roofline imposes at that intensity.
 
-We can also bound the cache-reuse factor without a profiler. At $512^3$ cells, the
-naive $32$ bytes/cell figure implies $4.295 \times 10^9$ bytes moved per integration
-step; dividing by this kernel's share of the measured per-step time
-($3.336\,\text{ms}$, from $3{,}336\,\text{ms}/1000$ steps in Table~\ref{tab:perf})
-gives an implied bandwidth of approximately $1{,}287\,\text{GB/s}$ -- $2.9\times$ the
-RTX 3070's $448\,\text{GB/s}$ spec-sheet peak. Since achieved bandwidth cannot exceed
-peak, this is direct evidence (not an assumption) that L1/L2 cache reuse across the
-7-point stencil's overlapping neighbor reads reduces actual DRAM traffic to well under
-a third of the naive estimate. Direct profiler measurement of the achieved-bandwidth
-percentage is left as future work.
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/roofline.pdf}
+\caption{Roofline model for the RTX 3070. The kernel's fixed naive operational
+intensity (dashed line) sits far below the ridge point; achieved performance at each
+grid size climbs toward the ceiling that intensity imposes as the grid grows.}
+\label{fig:roofline}
+\end{figure}
+
+We confirmed this directly with NVIDIA Nsight Compute 2026.2.0, profiling a
+steady-state launch of \texttt{gpuIntegrateGridKernel} (\texttt{--launch-skip 2
+--launch-count 1}, skipping the first two launches to avoid driver/cache warm-up)
+across the full $8^3$--$512^3$ range of Table~\ref{tab:perf}, averaged over 5 of 6
+runs per size (first discarded as warm-up). Four metrics were collected
+individually (DRAM throughput, compute throughput, L2 hit rate, achieved
+occupancy; exact metric names in \texttt{scripts/profile.ps1}), not Nsight
+Compute's default full section set. Table~\ref{tab:ncu} shows achieved DRAM
+throughput rising from under $1\%$ of peak (under $4\,\text{GB/s}$) at $8^3$ cells to
+$91.1\%$ ($408\,\text{GB/s}$) at $512^3$, while compute throughput stays in a narrow
+$43$--$50\%$ band from $64^3$ onward and never approaches saturation, strong evidence
+that the kernel is memory-bandwidth-limited rather than compute-limited, not merely
+an inference from operational intensity (Table~\ref{tab:ncu}, Fig.~\ref{fig:utilization}).
+At $8^3$ and $16^3$, both DRAM and compute utilization are below $4\%$ and occupancy
+drops to $28$--$30\%$, consistent with fixed kernel-launch overhead, not data
+movement, dominating runtime at those sizes. L2 hit rate stays in a $75$--$85\%$
+band across every size, consistent with substantial reuse of the stencil's
+overlapping neighbor reads.
+
+\begin{table}[t]
+\centering
+\caption{Nsight Compute measurements of \texttt{gpuIntegrateGridKernel}: mean $\pm$
+sample standard deviation over 5 of 6 runs per size (first discarded as warm-up).}
+\label{tab:ncu}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Grid size & DRAM \% & GB/s & Compute \% & L2 hit \% & Occupancy \% \\
+\midrule
+$8^3$   & $0.8 \pm 0.4$  & $3.7 \pm 1.8$   & $0.2 \pm 0.0$  & $85.1 \pm 0.9$ & $27.5 \pm 0.3$ \\
+$16^3$  & $3.6 \pm 0.0$  & $16.2 \pm 0.1$  & $1.9 \pm 0.2$  & $78.9 \pm 1.3$ & $29.9 \pm 0.2$ \\
+$32^3$  & $11.5 \pm 0.3$ & $51.5 \pm 1.2$  & $13.3 \pm 0.1$ & $76.5 \pm 0.0$ & $41.5 \pm 0.1$ \\
+$64^3$  & $52.4 \pm 0.6$ & $234.8 \pm 2.5$ & $43.2 \pm 0.4$ & $76.9 \pm 0.1$ & $76.9 \pm 0.9$ \\
+$128^3$ & $82.9 \pm 0.2$ & $371.5 \pm 0.9$ & $50.4 \pm 0.1$ & $78.4 \pm 0.1$ & $77.1 \pm 0.3$ \\
+$256^3$ & $90.6 \pm 0.0$ & $405.8 \pm 0.2$ & $45.6 \pm 1.6$ & $74.6 \pm 0.5$ & $79.6 \pm 0.1$ \\
+$512^3$ & $91.1 \pm 0.3$ & $408.2 \pm 1.2$ & $45.5 \pm 0.2$ & $74.6 \pm 0.1$ & $78.9 \pm 0.3$ \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/utilization.pdf}
+\caption{DRAM and compute throughput (\% of peak) vs. grid size. DRAM throughput
+overtakes and pulls away from compute throughput beyond $64^3$ cells.}
+\label{fig:utilization}
+\end{figure}
 
 \section{Discussion and Limitations}
 \label{sec:limitations}
@@ -389,13 +451,20 @@ trusted reference implementation).
 Verifying both backends independently, rather than trusting a speedup number on its
 own, paid off twice in this work: it caught a real GPU boundary-kernel defect
 (Section~\ref{sec:bug}), and it caught a flawed convergence-study design before that
-flaw could produce a misleadingly clean "order $\approx 4$" result instead of the
+flaw could produce a misleadingly clean ``order $\approx 4$'' result instead of the
 genuine order $\approx 2$ (Section~\ref{sec:convergence}). With those issues resolved,
-the GPU backend passes all verification checks -- the analytic-solution, conservation,
-boundary-invariant, and convergence-order checks alike -- and delivers a
-$65$--$68\times$ speedup over the OpenMP/SIMD CPU backend at grid sizes of $128^3$ and
-above, a result we can now attribute analytically to the kernel's low arithmetic
-intensity ($\approx 0.5$ FLOP/byte) rather than assert without support.
+the GPU backend passes all verification checks (the analytic-solution, conservation,
+boundary-invariant, and convergence-order checks alike) and delivers a
+$60$--$68\times$ speedup over the OpenMP/SIMD CPU backend at grid sizes of $128^3$ and
+above, which profiler measurements show is consistent with the kernel's low naive
+operational intensity ($\approx 0.5$ FLOP/byte): DRAM throughput reaches $91\%$ of
+peak at $512^3$ cells while compute throughput never exceeds $50\%$.
+
+\subsection*{Artifact availability}
+
+Source code, build instructions, the verification and convergence test suite, and
+the benchmark and profiling scripts behind every result in this paper are publicly
+available at \href{https://github.com/karl-kes/3d-heat-solver}{github.com/karl-kes/3d-heat-solver}.
 
 \begin{thebibliography}{9}
 
@@ -408,10 +477,10 @@ Processing Units (GPGPU-2)}, 2009.
 R. Courant, K. Friedrichs, and H. Lewy, ``\"Uber die partiellen Differenzengleichungen
 der mathematischen Physik,'' \emph{Mathematische Annalen}, vol. 100, no. 1, 1928.
 
-\bibitem{obrien1951}
+\bibitem{obrien1950}
 G. G. O'Brien, M. A. Hyman, and S. Kaplan, ``A study of the numerical solution of
 partial differential equations,'' \emph{Journal of Mathematics and Physics}, vol. 29,
-no. 1, 1951.
+no. 1, 1950.
 
 \bibitem{nvidia-cuda}
 NVIDIA Corporation, \emph{CUDA C++ Programming Guide}, 2024.

@@ -11,6 +11,12 @@ if ($LASTEXITCODE -ne 0) { throw "CUDA build failed" }
 & "$PSScriptRoot\run.ps1" -CudaOff --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "No-CUDA build failed" }
 
+function Get-Stats($values) {
+  $mean = ($values | Measure-Object -Average).Average
+  $variance = ($values | ForEach-Object { ($_ - $mean) * ($_ - $mean) } | Measure-Object -Sum).Sum / ($values.Count - 1)
+  return [PSCustomObject]@{ Mean = $mean; StdDev = [math]::Sqrt($variance) }
+}
+
 function Run-Average($exePath, $size) {
   $times = @()
   for ($i = 0; $i -lt 6; $i++) {
@@ -18,10 +24,8 @@ function Run-Average($exePath, $size) {
     $ms = [double]($out -replace 'ms', '')
     $times += $ms
   }
-  # discard first run, average remaining 5
-  $kept = $times[1..5]
-  $avg = ($kept | Measure-Object -Average).Average
-  return $avg
+  # discard first run, compute mean/stddev over remaining 5
+  return Get-Stats $times[1..5]
 }
 
 function Format-Sig3($value) {
@@ -35,18 +39,25 @@ function Format-Sig3($value) {
 foreach ($size in $sizes) {
   Write-Host "=== Grid size: ${size}^3 ===" -ForegroundColor Cyan
 
-  $gpuAvg = Run-Average "$projectRoot\build\heat_solver.exe" $size
-  $cpuAvg = Run-Average "$projectRoot\build-nocuda\heat_solver.exe" $size
-  $speedup = $cpuAvg / $gpuAvg
+  $gpu = Run-Average "$projectRoot\build\heat_solver.exe" $size
+  $cpu = Run-Average "$projectRoot\build-nocuda\heat_solver.exe" $size
+  $speedup = $cpu.Mean / $gpu.Mean
+  # standard error propagation for a ratio of two independent quantities
+  $speedupStdDev = $speedup * [math]::Sqrt(
+    [math]::Pow($cpu.StdDev / $cpu.Mean, 2) + [math]::Pow($gpu.StdDev / $gpu.Mean, 2)
+  )
 
   $results += [PSCustomObject]@{
-    Size    = "$size^3"
-    CPU_ms  = Format-Sig3 $cpuAvg
-    GPU_ms  = Format-Sig3 $gpuAvg
-    Speedup = Format-Sig3 $speedup
+    Size       = "$size^3"
+    CPU_ms     = Format-Sig3 $cpu.Mean
+    CPU_StdDev = Format-Sig3 $cpu.StdDev
+    GPU_ms     = Format-Sig3 $gpu.Mean
+    GPU_StdDev = Format-Sig3 $gpu.StdDev
+    Speedup    = Format-Sig3 $speedup
+    Speedup_StdDev = Format-Sig3 $speedupStdDev
   }
 
-  Write-Host "CPU: $(Format-Sig3 $cpuAvg) ms | GPU: $(Format-Sig3 $gpuAvg) ms | Speedup: $(Format-Sig3 $speedup)x"
+  Write-Host "CPU: $(Format-Sig3 $cpu.Mean) +/- $(Format-Sig3 $cpu.StdDev) ms | GPU: $(Format-Sig3 $gpu.Mean) +/- $(Format-Sig3 $gpu.StdDev) ms | Speedup: $(Format-Sig3 $speedup) +/- $(Format-Sig3 $speedupStdDev)x"
 }
 
 Write-Host ""

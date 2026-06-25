@@ -1,33 +1,3 @@
-# Regenerates the grid-convergence figure embedded in docs/paper.tex.
-#
-# Data is from tests/convergence.cpp (a measurement tool, not a CTest test;
-# built as the `convergence_probe` CMake target). Two sweeps:
-#
-#   - "self-similar": dx=dy=dz=1 fixed, nx varied, steps fixed at 40. Looks
-#     like mesh refinement but isn't: sigma0=0.1*nx grows with nx while the
-#     simulated physical time t=steps*dt stays fixed, so the Fourier number
-#     Fo=alpha*t/sigma0^2 shrinks as 1/nx^2 -- the blob diffuses less and less
-#     at higher "resolution", making the test progressively easier rather
-#     than actually isolating spatial truncation error. This is why it shows
-#     an inflated apparent order (~3.5-5) and is plotted here only to show
-#     why it's invalid, not as a result to trust.
-#   - "true refinement": physical domain L=64 held fixed, dx=L/nx shrinks,
-#     steps chosen per-resolution to land near a fixed physical end time.
-#     Fo is ~constant (0.14-0.17) across the whole sweep -- the same physical
-#     problem at increasing resolution, which is what a convergence study
-#     actually requires. This gives the textbook order ~2.0-2.1 over
-#     nx=16..128, degrading at nx=256 (641 steps; likely float32/temporal
-#     error floor).
-#
-# Reproduce with (from the repo root, after building build-nocuda/):
-#   $L = 64.0
-#   foreach ($n in 16,32,64,128,256) {
-#     $dx = $L / $n
-#     $steps = [math]::Ceiling(5.666667 / (0.85/(2*1*(3/($dx*$dx)))))
-#     .\build-nocuda\convergence_probe.exe --nx $n --ny $n --nz $n --dx $dx --dy $dx --dz $dx --steps $steps --output-interval 0
-#   }
-# and similarly with --dx 1 --dy 1 --dz 1 --steps 40 for the self-similar series.
-
 import shutil
 from pathlib import Path
 

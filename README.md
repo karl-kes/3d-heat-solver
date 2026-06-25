@@ -11,23 +11,37 @@ Both backends live in the same `.cu`/`.cuh` files. CUDA support is optional; the
 
 [`docs/paper.pdf`](docs/paper.pdf) is a short IEEE-style writeup of the project: the numerical method, the dual-backend design, the verification methodology, a real GPU boundary-condition bug it caught, and the performance results below with discussion.
 
-To rebuild it: `pip install -r docs/requirements.txt`, then `python docs/generate_plots.py`, `python docs/convergence.py`, `tests/convergence.cpp`, and then `pdflatex paper.tex` (twice, to resolve references) from `docs/`.
+To rebuild it: `pip install -r` [`docs/requirements.txt`](docs/requirements.txt), then [`python docs/generate_plots.py`](docs/generate_plots.py), [`python docs/convergence.py`](docs/convergence.py), and [`python docs/ncu_plots.py`](docs/ncu_plots.py), then `pdflatex` [`paper.tex`](docs/paper.tex) (twice, to resolve references) from `docs/`. The Nsight Compute data behind `ncu_plots.py` comes from [`scripts/profile.ps1`](scripts/profile.ps1), which must be run from an elevated PowerShell since it needs GPU performance-counter access.
 
 ## Performance
 
-Forward Euler integration + boundary update, 1000 steps, measured on this machine, average of 5 runs (6 total, first discarded as warm-up) via [`scripts/benchmark.ps1`](scripts/benchmark.ps1):
+Forward Euler integration + boundary update, 1000 steps, measured on this machine: mean ± sample stddev over 5 of 6 runs (first discarded as warm-up) via [`scripts/benchmark.ps1`](scripts/benchmark.ps1):
 
 | Grid size | CPU (OpenMP/SIMD) | GPU (CUDA) | Speedup |
 |-----------|-------------------|------------|---------|
-| 8³        | ~4.14 ms          | ~32.2 ms   | ~0.13x  |
-| 16³       | ~13.8 ms          | ~22.7 ms   | ~0.61x  |
-| 32³       | ~83.7 ms          | ~26.7 ms   | ~3.13x  |
-| 64³       | ~535 ms           | ~31.8 ms   | ~16.8x  |
-| 128³      | ~3805 ms          | ~62.0 ms   | ~61.4x  |
-| 256³      | ~29856 ms         | ~446 ms    | ~67.0x  |
-| 512³      | ~225321 ms        | ~3336 ms   | ~67.6x  |
+| 8³        | 3.40 ± 0.70 ms     | 25.5 ± 5.9 ms | 0.13 ± 0.04x |
+| 16³       | 12.6 ± 0.53 ms     | 34.4 ± 6.2 ms | 0.37 ± 0.07x |
+| 32³       | 71.8 ± 1.4 ms      | 26.5 ± 6.4 ms | 2.71 ± 0.66x |
+| 64³       | 518 ± 23 ms        | 28.4 ± 1.8 ms | 18.2 ± 1.4x  |
+| 128³      | 3768 ± 50 ms       | 62.6 ± 0.6 ms | 60.2 ± 1.0x  |
+| 256³      | 28910 ± 119 ms     | 444 ± 0.2 ms  | 65.1 ± 0.3x  |
+| 512³      | 226716 ± 900 ms    | 3339 ± 1.0 ms | 67.9 ± 0.3x  |
 
-At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs and settles around 60-70x as the GPU's bandwidth advantage takes over.
+At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slower than the CPU; the crossover is between 16³ and 32³. Past that, speedup climbs and settles around 60-68x as the GPU's bandwidth advantage takes over.
+
+Nsight Compute profiling of the integration kernel, average of 5 runs (6 total, first discarded as warm-up) via [`scripts/profile.ps1`](scripts/profile.ps1):
+
+| Grid size | DRAM % | Compute % | L2 hit % | Occupancy % |
+|-----------|--------|-----------|----------|--------------|
+| 8³        | 0.7    | 0.2       | 82.4     | 27.8         |
+| 16³       | 3.1    | 1.9       | 71.9     | 29.6         |
+| 32³       | 11.6   | 12.9      | 76.3     | 41.8         |
+| 64³       | 54.5   | 42.7      | 76.9     | 77.0         |
+| 128³      | 82.9   | 50.4      | 78.5     | 77.6         |
+| 256³      | 90.5   | 46.2      | 74.8     | 79.6         |
+| 512³      | 91.1   | 45.4      | 74.5     | 78.9         |
+
+DRAM throughput overtakes and pulls away from compute throughput beyond 64³, confirming the kernel is memory-bandwidth-bound rather than compute-bound. At 8³/16³, both are under 4% with occupancy in the high 20s, consistent with fixed kernel-launch overhead, not data movement, dominating runtime at those sizes.
 
 ## Requirements
 

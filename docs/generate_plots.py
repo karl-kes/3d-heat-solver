@@ -1,18 +1,8 @@
-# Regenerates the benchmark figures embedded in docs/paper.tex.
-#
-# Data is copied from the Performance table in README.md (scripts/benchmark.ps1
-# output, 1000 steps, average of 5-of-6 runs). Update both places if the
-# benchmark is re-run.
-#
-# Renders text with real LaTeX (mathptmx, matching IEEEtran's default Times
-# font) so the figures look like part of the paper rather than a separate
-# matplotlib default. Falls back to matplotlib's own mathtext if no LaTeX
-# install is found.
-
 import shutil
 from pathlib import Path
 
 import matplotlib
+import numpy as np
 
 if shutil.which("latex"):
     matplotlib.rcParams["text.usetex"] = True
@@ -39,10 +29,16 @@ matplotlib.rcParams.update(
 FIGURES_DIR = Path(__file__).resolve().parent / "figures"
 FIGURES_DIR.mkdir(exist_ok=True)
 
-sizes = [8, 16, 32, 64, 128, 256, 512]
-cpu_ms = [4.14, 13.8, 83.7, 535, 3805, 29856, 225321]
-gpu_ms = [32.2, 22.7, 26.7, 31.8, 62.0, 446, 3336]
-speedup = [c / g for c, g in zip(cpu_ms, gpu_ms)]
+# From scripts/benchmark.ps1 (5-of-6-run mean +/- sample stddev per size).
+# Update both here and in paper.tex's tab:perf if re-benchmarked.
+sizes = np.array([8, 16, 32, 64, 128, 256, 512])
+cpu_ms = np.array([3.40, 12.6, 71.8, 518, 3768, 28910, 226716])
+cpu_std = np.array([0.701, 0.532, 1.43, 22.8, 49.7, 119, 900])
+gpu_ms = np.array([25.5, 34.4, 26.5, 28.4, 62.6, 444, 3339])
+gpu_std = np.array([5.94, 6.22, 6.44, 1.84, 0.624, 0.160, 0.991])
+speedup = cpu_ms / gpu_ms
+# standard error propagation for a ratio of two independent quantities
+speedup_std = speedup * np.sqrt((cpu_std / cpu_ms) ** 2 + (gpu_std / gpu_ms) ** 2)
 
 CPU_COLOR = "#c44e52"
 GPU_COLOR = "#4c72b0"
@@ -60,14 +56,16 @@ def style_axes(ax):
 
 
 fig, ax = plt.subplots(figsize=(3.3, 2.4))
-ax.loglog(
-    sizes, cpu_ms, "o-", color=CPU_COLOR, markerfacecolor="white",
-    markeredgewidth=1.1, label="CPU (OpenMP/SIMD)",
+ax.errorbar(
+    sizes, cpu_ms, yerr=cpu_std, fmt="o-", color=CPU_COLOR, markerfacecolor="white",
+    markeredgewidth=1.1, capsize=2, elinewidth=0.8, label="CPU (OpenMP/SIMD)",
 )
-ax.loglog(
-    sizes, gpu_ms, "s-", color=GPU_COLOR, markerfacecolor="white",
-    markeredgewidth=1.1, label="GPU (CUDA)",
+ax.errorbar(
+    sizes, gpu_ms, yerr=gpu_std, fmt="s-", color=GPU_COLOR, markerfacecolor="white",
+    markeredgewidth=1.1, capsize=2, elinewidth=0.8, label="GPU (CUDA)",
 )
+ax.set_xscale("log")
+ax.set_yscale("log")
 ax.set_xlabel(r"Grid size ($n$, for an $n^3$ grid)")
 ax.set_ylabel("Runtime (ms)")
 style_axes(ax)
@@ -76,10 +74,11 @@ fig.tight_layout(pad=0.4)
 fig.savefig(FIGURES_DIR / "runtime.pdf", bbox_inches="tight")
 
 fig, ax = plt.subplots(figsize=(3.3, 2.4))
-ax.semilogx(
-    sizes, speedup, "o-", color=SPEEDUP_COLOR, markerfacecolor="white",
-    markeredgewidth=1.1,
+ax.errorbar(
+    sizes, speedup, yerr=speedup_std, fmt="o-", color=SPEEDUP_COLOR,
+    markerfacecolor="white", markeredgewidth=1.1, capsize=2, elinewidth=0.8,
 )
+ax.set_xscale("log")
 ax.axhline(1.0, color="0.5", linestyle="--", linewidth=0.8)
 ax.set_xlabel(r"Grid size ($n$, for an $n^3$ grid)")
 ax.set_ylabel(r"Speedup ($T_{\mathrm{CPU}} / T_{\mathrm{GPU}}$)")
