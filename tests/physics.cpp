@@ -71,12 +71,12 @@ int main() {
     return 1;
   }
 
-  // Check 2: conservation of energy (total sum) under the insulated boundary
+  // Check 2: conservation of energy over interior cells (ghost layer excluded)
   float sum0{};
   float sum{};
-  for (std::size_t k{}; k < cfg.nz; ++k) {
-    for (std::size_t j{}; j < cfg.ny; ++j) {
-      for (std::size_t i{}; i < cfg.nx; ++i) {
+  for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
+    for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
+      for (std::size_t i{1}; i < cfg.nx - 1; ++i) {
         sum0 += field0[grid0.idx(i, j, k)];
         sum += field[grid.idx(i, j, k)];
       }

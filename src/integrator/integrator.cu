@@ -89,7 +89,6 @@ void gpuIntegrateGridKernel(
 
   if (i >= nx-1 || j >= ny-1 || k >= nz-1) { return; }
 
-  // Laplacian points:
   const std::size_t x_low{(i-1) + p_nx * (j + p_ny * k)};
   const std::size_t x_high{(i+1) + p_nx * (j + p_ny * k)};
 
@@ -99,17 +98,14 @@ void gpuIntegrateGridKernel(
   const std::size_t z_low{i + p_nx * (j + p_ny * (k-1))};
   const std::size_t z_high{i + p_nx * (j + p_ny * (k+1))};
 
-  // Center point:
   const std::size_t point{i + p_nx * (j + p_ny * k)};
 
-  // Laplacian:
   const float laplacian{
     (u_old[x_low] - 2.0f * u_old[point] + u_old[x_high]) * inv_dx_sq +
     (u_old[y_low] - 2.0f * u_old[point] + u_old[y_high]) * inv_dy_sq +
     (u_old[z_low] - 2.0f * u_old[point] + u_old[z_high]) * inv_dz_sq
   };
 
-  // Field update:
   u_new[point] = u_old[point] + alpha_dt * laplacian;
 }
 #else
@@ -183,7 +179,6 @@ void cpuIntegrateGridKernel(
 
       #pragma omp simd
       for (std::size_t i = 1; i < nx-1; ++i) {
-        // Laplacian points:
         const std::size_t x_low{(i-1) + p_nx * (j + p_ny * k)};
         const std::size_t x_high{(i+1) + p_nx * (j + p_ny * k)};
 
@@ -193,10 +188,8 @@ void cpuIntegrateGridKernel(
         const std::size_t z_low{i + p_nx * (j + p_ny * (k-1))};
         const std::size_t z_high{i + p_nx * (j + p_ny * (k+1))};
 
-        // Center point:
         const std::size_t point{i + p_nx * (j + p_ny * k)};
 
-        // Laplacian:
         const float laplacian{
           (u_old[x_low] - 2.0f * u_old[point] + u_old[x_high]) * inv_dx_sq +
           (u_old[y_low] - 2.0f * u_old[point] + u_old[y_high]) * inv_dy_sq +

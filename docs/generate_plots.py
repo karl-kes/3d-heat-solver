@@ -29,8 +29,7 @@ matplotlib.rcParams.update(
 FIGURES_DIR = Path(__file__).resolve().parent / "figures"
 FIGURES_DIR.mkdir(exist_ok=True)
 
-# From scripts/benchmark.ps1 (5-of-6-run mean +/- sample stddev per size).
-# Update both here and in paper.tex's tab:perf if re-benchmarked.
+# Measured by scripts/benchmark.ps1 (mean over 5 of 6 runs); mirror tab:perf.
 sizes = np.array([8, 16, 32, 64, 128, 256, 512])
 cpu_ms = np.array([3.40, 12.6, 71.8, 518, 3768, 28910, 226716])
 cpu_std = np.array([0.701, 0.532, 1.43, 22.8, 49.7, 119, 900])

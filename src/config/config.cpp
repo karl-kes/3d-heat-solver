@@ -15,6 +15,7 @@ void print_usage() {
     "  --nz <n>                   grid size in z (default 64)\n"
     "  --steps <n>                total integration steps (default 1000)\n"
     "  --output-interval <n>      VTK output interval, 0 = disabled (default 0)\n"
+    "  --ic <gaussian|cosine>     initial condition (default gaussian)\n"
     "  --alpha <f>                thermal diffusivity (default 1.0)\n"
     "  --dx <f> --dy <f> --dz <f> grid spacing (default 1.0)\n"
     "  --help                     show this message\n";
@@ -56,6 +57,14 @@ Config Config::parse(int argc, char** argv) {
     else if (flag == "--nz") { cfg.nz = parse_number<std::size_t>(flag, value); }
     else if (flag == "--steps") { cfg.total_steps = parse_number<std::size_t>(flag, value); }
     else if (flag == "--output-interval") { cfg.output_interval = parse_number<std::size_t>(flag, value); }
+    else if (flag == "--ic") {
+      if (value == "gaussian") { cfg.ic = InitCondition::Gaussian; }
+      else if (value == "cosine") { cfg.ic = InitCondition::NeumannCosine; }
+      else {
+        std::cerr << "invalid value for --ic: " << value << '\n';
+        std::exit(1);
+      }
+    }
     else if (flag == "--alpha") { cfg.alpha = parse_number<float>(flag, value); }
     else if (flag == "--dx") { cfg.dx = parse_number<float>(flag, value); }
     else if (flag == "--dy") { cfg.dy = parse_number<float>(flag, value); }

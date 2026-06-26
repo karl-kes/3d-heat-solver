@@ -1,0 +1,81 @@
+#include "config/config.hpp"
+#include "simulation/simulation.hpp"
+#include "utilities/helpers.cuh"
+
+#include <cmath>
+#include <cstdio>
+#include <vector>
+
+namespace {
+
+std::vector<float> field_snapshot(const Grid& grid) {
+  std::vector<float> field(grid.p_nx() * grid.p_ny() * grid.p_nz());
+  grid.copy_to_host(field.data());
+  return field;
+}
+
+} // namespace
+
+int main() {
+  Config cfg{};
+  cfg.nx = cfg.ny = cfg.nz = 64;
+  cfg.dx = cfg.dy = cfg.dz = 1.0f;
+  cfg.alpha = 1.0f;
+  cfg.ic = InitCondition::NeumannCosine;
+  cfg.output_interval = 0;
+  cfg.total_steps = 200;
+  cfg.dt = Config::stable_dt(cfg.alpha, cfg.dx, cfg.dy, cfg.dz);
+
+  Simulation sim{cfg};
+  sim.run();
+  const Grid& grid{sim.grid()};
+  const std::vector<float> field{field_snapshot(grid)};
+
+  // Exact finite-box solution: u = prod cos(pi r/L) * exp(-lambda t), du/dn=0 on every face.
+  const float t{static_cast<float>(cfg.total_steps) * cfg.dt};
+  const float lambda{neumann_decay_rate(cfg.alpha, cfg.dx, cfg.dy, cfg.dz, cfg.nx, cfg.ny, cfg.nz)};
+  const float decay{std::exp(-lambda * t)};
+
+  // Check 1: global L2 relative error against the analytic solution over the interior.
+  double sq_error_sum{};
+  double sq_expected_sum{};
+  for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
+
+    const float cz{cosine_mode(k, cfg.nz)};
+    for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
+
+      const float cy{cosine_mode(j, cfg.ny)};
+      for (std::size_t i{1}; i < cfg.nx - 1; ++i) {
+        const float cx{cosine_mode(i, cfg.nx)};
+        const float expected{cx * cy * cz * decay};
+        const float actual{field[grid.idx(i, j, k)]};
+        const double diff{static_cast<double>(actual) - static_cast<double>(expected)};
+
+        sq_error_sum += diff * diff;
+        sq_expected_sum += static_cast<double>(expected) * static_cast<double>(expected);
+      }
+    }
+  }
+
+  const double l2_rel_error{std::sqrt(sq_error_sum / sq_expected_sum)};
+
+  if (l2_rel_error > 5e-4) {
+    std::fprintf(stderr,
+      "neumann: L2 relative error too large (%.3e)\n", l2_rel_error);
+    return 1;
+  }
+
+  // Check 2: du/dn = 0 still holds exactly at the faces under the cosine condition.
+  for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
+    for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
+      if (field[grid.idx(0, j, k)] != field[grid.idx(1, j, k)] ||
+          field[grid.idx(cfg.nx - 1, j, k)] != field[grid.idx(cfg.nx - 2, j, k)]) {
+            
+        std::fprintf(stderr, "neumann: x-boundary not insulated\n");
+        return 1;
+      }
+    }
+  }
+
+  return 0;
+}

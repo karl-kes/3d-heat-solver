@@ -31,7 +31,7 @@ At small grids, fixed CUDA kernel-launch overhead dominates and the GPU is slowe
 
 Nsight Compute profiling of the integration kernel, average of 5 runs (6 total, first discarded as warm-up) via [`scripts/profile.ps1`](scripts/profile.ps1):
 
-| Grid size | DRAM % | Compute % | L2 hit % | Occupancy % |
+| Grid size | DRAM % | SM util. % | L2 hit % | Occupancy % |
 |-----------|--------|-----------|----------|--------------|
 | 8³        | 0.7    | 0.2       | 82.4     | 27.8         |
 | 16³       | 3.1    | 1.9       | 71.9     | 29.6         |
@@ -41,7 +41,7 @@ Nsight Compute profiling of the integration kernel, average of 5 runs (6 total, 
 | 256³      | 90.5   | 46.2      | 74.8     | 79.6         |
 | 512³      | 91.1   | 45.4      | 74.5     | 78.9         |
 
-DRAM throughput overtakes and pulls away from compute throughput beyond 64³, confirming the kernel is memory-bandwidth-bound rather than compute-bound. At 8³/16³, both are under 4% with occupancy in the high 20s, consistent with fixed kernel-launch overhead, not data movement, dominating runtime at those sizes.
+DRAM throughput overtakes and pulls away from SM utilization beyond 64³, confirming the kernel is memory-bandwidth-bound rather than compute-bound. ("SM util." is `sm__throughput.avg.pct_of_peak_sustained_elapsed`, an aggregate over the SM's sub-units, not FP32 throughput specifically, so the actual FP32 fraction of peak is lower still.) At 8³/16³, both are under 4% with occupancy in the high 20s, consistent with fixed kernel-launch overhead, not data movement, dominating runtime at those sizes.
 
 ## Requirements
 
@@ -92,6 +92,7 @@ Run with `--help` to see all options:
 --nx <n> --ny <n> --nz <n>    grid size in each dimension (default 64)
 --steps <n>                   total integration steps (default 1000)
 --output-interval <n>         VTK output interval, 0 = disabled (default 0)
+--ic <gaussian|cosine>        initial condition (default gaussian)
 --alpha <f>                   thermal diffusivity (default 1.0)
 --dx <f> --dy <f> --dz <f>    grid spacing (default 1.0)
 ```
@@ -108,10 +109,11 @@ ctest --test-dir build --output-on-failure
 ```
 
 - [`tests/physics.cpp`](tests/physics.cpp): peak value vs. the analytic Gaussian-diffusion solution, total-sum conservation under the insulated boundary, and exact ghost-cell mirroring (`du/dn = 0`) at every boundary face.
+- [`tests/neumann.cpp`](tests/neumann.cpp): global L2 error against the exact finite-domain Neumann eigenfunction, a cosine product satisfying `du/dn = 0` on every face exactly, so it carries no infinite-domain modeling error.
 - [`tests/config.cpp`](tests/config.cpp): CLI parsing, defaults, overrides, and that `dt` is always re-derived rather than left stale.
 - [`tests/aligned_soa.cpp`](tests/aligned_soa.cpp): alignment-rounding math and zero-initialization of the underlying SoA storage.
 
-`physics` runs in both `build/` (CUDA) and `build-nocuda/` (CPU). Since each independently checks against the known-correct analytic solution, both passing also serves as the CPU/GPU parity check. GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs this for real on the CPU backend; the CUDA backend only gets a compile check in CI, since GitHub-hosted runners have no GPU to run it on.
+`physics` and `neumann` run in both `build/` (CUDA) and `build-nocuda/` (CPU). Since each independently checks against the known-correct analytic solution, both passing also serves as the CPU/GPU parity check. GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs this for real on the CPU backend; the CUDA backend only gets a compile check in CI, since GitHub-hosted runners have no GPU to run it on.
 
 ## Output
 

@@ -113,6 +113,10 @@ add_executable(test_physics tests/physics.cpp)
 target_link_libraries(test_physics PRIVATE heat_solver_core)
 add_test(NAME physics COMMAND test_physics)
 
+add_executable(test_neumann tests/neumann.cpp)
+target_link_libraries(test_neumann PRIVATE heat_solver_core)
+add_test(NAME neumann COMMAND test_neumann)
+
 add_executable(test_config tests/config.cpp)
 target_link_libraries(test_config PRIVATE heat_solver_core)
 add_test(NAME config COMMAND test_config)
@@ -121,6 +125,5 @@ add_executable(test_aligned_soa tests/aligned_soa.cpp)
 target_link_libraries(test_aligned_soa PRIVATE heat_solver_core)
 add_test(NAME aligned_soa COMMAND test_aligned_soa)
 
-# Measurement utility for docs/convergence.py, not a pass/fail test.
 add_executable(convergence_probe tests/convergence.cpp)
 target_link_libraries(convergence_probe PRIVATE heat_solver_core)

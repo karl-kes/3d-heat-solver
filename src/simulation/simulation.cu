@@ -1,4 +1,5 @@
 #include "simulation.hpp"
+#include "../utilities/helpers.cuh"
 #include "../io/vtk_writer.hpp"
 
 #include <cmath>
@@ -6,17 +7,17 @@
 Simulation::Simulation(const Config& config)
 : total_steps_{config.total_steps}
 , output_interval_{config.output_interval}
+, ic_{config.ic}
 , grid_a_{config}
 , grid_b_{config}
-, integrator_{std::make_unique<ExplicitEuler>(config)} {
-  initialize();
-}
+, integrator_{std::make_unique<ExplicitEuler>(config)}
+{ initialize(); }
 
 namespace {
 
 #if defined(__CUDACC__)
 __global__
-void gpuInitializeGridKernel(
+void gpuInitializeGaussianKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
   float* RESTRICT u
@@ -44,39 +45,78 @@ void gpuInitializeGridKernel(
   const std::size_t point{i + p_nx * (j + p_ny * k)};
   u[point] = amplitude * expf(-r_sq * inv_two_sig_sq);
 }
-#else
-  void cpuInitializeGridKernel(
+
+__global__
+void gpuInitializeCosineKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
   float* RESTRICT u
 ) {
-    ASSUME_ALIGNED(u, SIMD_BYTES);
+  const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
+  const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
+  const std::size_t k{blockIdx.z * blockDim.z + threadIdx.z};
 
-    const float center_x{0.5f * static_cast<float>(nx - 1)};
-    const float center_y{0.5f * static_cast<float>(ny - 1)};
-    const float center_z{0.5f * static_cast<float>(nz - 1)};
+  if (i >= nx || j >= ny || k >= nz) { return; }
 
-    const float amplitude{1.0f};
-    const float sigma{0.1f * static_cast<float>(nx)};
-    const float two_sigma_sq{2.0f * sigma * sigma};
-    const float inv_two_sig_sq{1.0f / two_sigma_sq};
+  const std::size_t point{i + p_nx * (j + p_ny * k)};
+  u[point] = cosine_mode(i, nx) * cosine_mode(j, ny) * cosine_mode(k, nz);
+}
+#else
+  void cpuInitializeGaussianKernel(
+  std::size_t nx, std::size_t ny, std::size_t nz,
+  std::size_t p_nx, std::size_t p_ny,
+  float* RESTRICT u
+) {
+  ASSUME_ALIGNED(u, SIMD_BYTES);
 
-    #pragma omp parallel for collapse(2)
-    for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
-      for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(ny); ++j) {
+  const float center_x{0.5f * static_cast<float>(nx - 1)};
+  const float center_y{0.5f * static_cast<float>(ny - 1)};
+  const float center_z{0.5f * static_cast<float>(nz - 1)};
 
-        #pragma omp simd
-        for (std::size_t i = 0; i < nx; ++i) {
-          const float rx{static_cast<float>(i) - center_x};
-          const float ry{static_cast<float>(j) - center_y};
-          const float rz{static_cast<float>(k) - center_z};
-          const float r_sq{rx*rx + ry*ry + rz*rz};
+  const float amplitude{1.0f};
+  const float sigma{0.1f * static_cast<float>(nx)};
+  const float two_sigma_sq{2.0f * sigma * sigma};
+  const float inv_two_sig_sq{1.0f / two_sigma_sq};
 
-          const std::size_t point{i + p_nx * (j + p_ny * k)};
-          u[point] = amplitude * std::exp(-r_sq * inv_two_sig_sq);
-        }
+  #pragma omp parallel for collapse(2)
+  for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
+    for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(ny); ++j) {
+
+      #pragma omp simd
+      for (std::size_t i = 0; i < nx; ++i) {
+        const float rx{static_cast<float>(i) - center_x};
+        const float ry{static_cast<float>(j) - center_y};
+        const float rz{static_cast<float>(k) - center_z};
+        const float r_sq{rx*rx + ry*ry + rz*rz};
+
+        const std::size_t point{i + p_nx * (j + p_ny * k)};
+        u[point] = amplitude * std::exp(-r_sq * inv_two_sig_sq);
       }
     }
+  }
+}
+
+void cpuInitializeCosineKernel(
+  std::size_t nx, std::size_t ny, std::size_t nz,
+  std::size_t p_nx, std::size_t p_ny,
+  float* RESTRICT u
+) {
+  ASSUME_ALIGNED(u, SIMD_BYTES);
+
+  #pragma omp parallel for collapse(2)
+  for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
+    for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(ny); ++j) {
+
+      const float cy{cosine_mode(static_cast<std::size_t>(j), ny)};
+      const float cz{cosine_mode(static_cast<std::size_t>(k), nz)};
+
+      #pragma omp simd
+      for (std::size_t i = 0; i < nx; ++i) {
+        const std::size_t point{i + p_nx * (j + p_ny * k)};
+        u[point] = cosine_mode(i, nx) * cy * cz;
+      }
+    }
+  }
 }
 #endif
 
@@ -85,20 +125,47 @@ void gpuInitializeGridKernel(
 void Simulation::initialize() {
 #if defined(__CUDACC__)
   dim3 threads(8, 8, 8);
+
+  if (ic_ == InitCondition::NeumannCosine) {
+    dim3 blocks(
+      (static_cast<unsigned>(grid_a_.nx()) + threads.x - 1) / threads.x,
+      (static_cast<unsigned>(grid_a_.ny()) + threads.y - 1) / threads.y,
+      (static_cast<unsigned>(grid_a_.nz()) + threads.z - 1) / threads.z
+    );
+
+    gpuInitializeCosineKernel<<<blocks, threads>>>(
+      grid_a_.nx(), grid_a_.ny(), grid_a_.nz(),
+      grid_a_.p_nx(), grid_a_.p_ny(),
+      grid_a_.field()
+    );
+    CUDA_CHECK(cudaGetLastError());
+
+    return;
+  }
+
   dim3 blocks(
     (static_cast<unsigned>(grid_a_.nx()-1) + threads.x - 1 ) / threads.x,
     (static_cast<unsigned>(grid_a_.ny()-1) + threads.y - 1 ) / threads.y,
     (static_cast<unsigned>(grid_a_.nz()-1) + threads.z - 1 ) / threads.z
   );
 
-  gpuInitializeGridKernel<<<blocks, threads>>>(
+  gpuInitializeGaussianKernel<<<blocks, threads>>>(
     grid_a_.nx(), grid_a_.ny(), grid_a_.nz(),
     grid_a_.p_nx(), grid_a_.p_ny(),
     grid_a_.field()
   );
   CUDA_CHECK(cudaGetLastError());
 #else
-  cpuInitializeGridKernel(
+  if (ic_ == InitCondition::NeumannCosine) {
+    cpuInitializeCosineKernel(
+      grid_a_.nx(), grid_a_.ny(), grid_a_.nz(),
+      grid_a_.p_nx(), grid_a_.p_ny(),
+      grid_a_.field()
+    );
+    return;
+  }
+
+  cpuInitializeGaussianKernel(
     grid_a_.nx(), grid_a_.ny(), grid_a_.nz(),
     grid_a_.p_nx(), grid_a_.p_ny(),
     grid_a_.field()

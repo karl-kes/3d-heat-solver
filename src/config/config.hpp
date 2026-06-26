@@ -3,9 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 
+enum class InitCondition { Gaussian, NeumannCosine };
+
 struct Config {
   std::size_t total_steps{1000};
   std::size_t output_interval{0};
+  InitCondition ic{InitCondition::Gaussian};
 
   std::size_t nx{64};
   std::size_t ny{64};

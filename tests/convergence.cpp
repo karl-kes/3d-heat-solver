@@ -1,5 +1,6 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
+#include "utilities/helpers.cuh"
 
 #include <cmath>
 #include <cstdio>
@@ -14,6 +15,39 @@ int main(int argc, char** argv) {
   const Grid& grid{sim.grid()};
   std::vector<float> field(grid.total_size());
   grid.copy_to_host(field.data());
+
+  if (cfg.ic == InitCondition::NeumannCosine) {
+    const float t{static_cast<float>(cfg.total_steps) * cfg.dt};
+    const float lambda{neumann_decay_rate(cfg.alpha, cfg.dx, cfg.dy, cfg.dz, cfg.nx, cfg.ny, cfg.nz)};
+    const float decay{std::exp(-lambda * t)};
+
+    double sq_error_sum{};
+    double sq_expected_sum{};
+    for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
+
+      const float cz{cosine_mode(k, cfg.nz)};
+      for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
+
+        const float cy{cosine_mode(j, cfg.ny)};
+        for (std::size_t i{1}; i < cfg.nx - 1; ++i) {
+          const float cx{cosine_mode(i, cfg.nx)};
+          const float expected{cx * cy * cz * decay};
+          const float actual{field[grid.idx(i, j, k)]};
+          const double diff{static_cast<double>(actual) - static_cast<double>(expected)};
+
+          sq_error_sum += diff * diff;
+          sq_expected_sum += static_cast<double>(expected) * static_cast<double>(expected);
+        }
+      }
+    }
+
+    const double l2_rel_error{std::sqrt(sq_error_sum / sq_expected_sum)};
+    std::printf(
+      "%zu,%.6f,%zu,%.8f,%.6f,%.10f,%.10f\n",
+      cfg.nx, cfg.dx, cfg.total_steps, cfg.dt, t, l2_rel_error, 0.0
+    );
+    return 0;
+  }
 
   const float center_x{0.5f * static_cast<float>(cfg.nx - 1)};
   const float center_y{0.5f * static_cast<float>(cfg.ny - 1)};

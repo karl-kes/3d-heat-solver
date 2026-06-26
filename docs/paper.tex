@@ -37,11 +37,10 @@ finite differences, with CPU (OpenMP/SIMD) and CUDA GPU backends built from one
 source tree and selected at compile time. Both backends are verified independently
 against a closed-form analytic solution, a conservation law, an exact
 boundary-condition invariant, and a grid-convergence study. This caught a genuine GPU
-boundary-kernel defect and an invalid initial convergence-study design; corrected, the
-study recovers the expected second-order accuracy. We report benchmarks from $8^3$ to
-$512^3$ cells on stated hardware, with Nsight Compute measurements confirming the
-memory-bound conclusion directly, showing a CPU/GPU crossover between $16^3$ and
-$32^3$ cells and a speedup plateau around $60$--$68\times$.
+boundary-kernel defect and an invalid initial convergence-study design; after
+correction, the study recovers the expected second-order convergence rate. We report benchmarks from $8^3$ to $512^3$ cells on stated hardware. Nsight Compute
+measurements confirm the memory-bound conclusion directly, with a CPU/GPU crossover
+between $16^3$ and $32^3$ cells and a speedup plateau around $60$--$68\times$.
 \end{abstract}
 
 \section{Introduction}
@@ -64,8 +63,9 @@ The contributions of this work are:
   \item A verification methodology combining an analytic-solution check, a
     conservation check, an exact boundary-condition invariant, and a grid-convergence
     study (Section~\ref{sec:convergence}, including a corrected mesh-refinement scheme
-    after an initial attempt was found to conflate resolution with problem
-    difficulty), applied independently to both backends.
+    after an initial attempt was found to conflate resolution with problem difficulty,
+    and an exact finite-domain eigenmode that isolates a boundary-modeling error in the
+    Gaussian reference), applied independently to both backends.
   \item Identification and correction of a genuine GPU boundary-kernel defect that
     this verification methodology caught and a coarser check would have missed
     (Section~\ref{sec:bug}).
@@ -79,8 +79,9 @@ The contributions of this work are:
 GPU finite-difference stencil computation is well studied; Micikevicius
 \cite{micikevicius2009} describes shared-memory tiling and multi-GPU strategies for
 3D finite-difference stencils on CUDA hardware, in the context of seismic modeling.
-That work targeted Tesla/Fermi-era GPUs, which had no general-purpose L1 cache for
-global memory, making explicit tiling necessary to capture neighbor reuse at all. The
+That work targeted older Tesla-era GPUs, whose much smaller and less capable cache
+hierarchies made explicit shared-memory tiling necessary to capture neighbor reuse at
+all. The
 present work targets a single GPU and does not implement shared-memory tiling
 (Section~\ref{sec:limitations}); instead it relies on the much larger L1/L2 cache
 hierarchy of modern hardware (Ampere, here) to capture some of that reuse implicitly,
@@ -95,8 +96,10 @@ We solve the unsteady heat equation on a cuboid domain,
   \frac{\partial u}{\partial t} = \alpha \nabla^2 u,
 \end{equation}
 where $u(x,y,z,t)$ is temperature and $\alpha$ is the (constant, isotropic) thermal
-diffusivity. The domain is discretized on a structured grid of $n_x \times n_y \times
-n_z$ interior cells with uniform spacings $\Delta x, \Delta y, \Delta z$, and the
+diffusivity. The domain is discretized on a cell-centered structured grid with uniform
+spacings $\Delta x, \Delta y, \Delta z$ and one ghost-cell layer on each face; we
+write $n_x \times n_y \times n_z$ for the full per-axis cell count \emph{including}
+those ghost layers, so an $n$-sized axis carries $n-2$ interior cells. The
 Laplacian is approximated with the standard second-order central-difference 7-point
 stencil,
 \begin{equation}
@@ -128,8 +131,8 @@ $\partial u/\partial n = 0$. This is implemented with the standard ghost-cell mi
 technique, $u_{\text{ghost}} = u_{\text{adjacent interior}}$, applied independently on
 each of the six faces after every integration step. Because the central-difference
 stencil's flux term at the boundary depends only on the difference between the ghost
-and adjacent-interior values, this mirroring makes that difference exactly zero, not
-merely approximately so.
+and adjacent-interior values, this mirroring makes the discrete normal difference at
+the ghost interface exactly zero.
 
 \section{Implementation}
 
@@ -193,9 +196,10 @@ implementation against problems with a known closed-form solution rather than re
 on benchmark performance as a proxy for correctness. Because the CPU and GPU backends
 are selected at compile time, a single binary cannot
 run both, so direct cross-binary comparison is not a natural fit. Instead, the same
-test suite runs independently against the analytic solution in both build
-configurations; if both backends agree with the known-correct answer within a
-tolerance $\epsilon$, the triangle inequality bounds their mutual disagreement by at
+verification suite runs independently in both build configurations, comparing against
+either a closed-form analytic reference or a discrete invariant. For the
+analytic-reference checks, if both backends agree with the known-correct answer within
+a tolerance $\epsilon$, the triangle inequality bounds their mutual disagreement by at
 most $2\epsilon$, without needing a dump-and-diff mechanism. Four checks are used:
 three on a small ($32^3$) grid with an isotropic
 Gaussian initial condition, and a fourth (Section~\ref{sec:convergence}) sweeping
@@ -216,12 +220,24 @@ grid point nearest the center against this closed form, within a $5\%$ relative
 tolerance accounting for discretization error and the small residual influence of the
 (finite, insulated) domain boundary.
 
+A Gaussian is exact only on an unbounded domain. As an exact reference for the
+\emph{finite} insulated box we also use the Neumann cosine eigenmode
+\begin{equation}
+  u(\mathbf{r}, t) = \left(\prod_{d \in \{x,y,z\}} \cos\frac{\pi r_d}{L_d}\right)
+    e^{-\alpha \pi^2 t \sum_d 1/L_d^2},
+  \label{eq:cosine}
+\end{equation}
+which satisfies $\partial u/\partial n = 0$ on every face exactly and so carries no
+boundary-modeling error. It drives the convergence study of
+Section~\ref{sec:convergence}.
+
 \subsection{Conservation of energy}
 
 With zero flux at every boundary and no source term, $\int u \, dV$ is exactly
 conserved: $\frac{d}{dt}\int u\,dV = \alpha \oint \nabla u \cdot \mathbf{n} \, dA = 0$.
-The test compares the discrete sum $\sum_{i,j,k} u_{i,j,k}$ at $t=0$ against the same
-sum after the run, within a $2\%$ tolerance.
+The test compares the discrete sum over interior cells only,
+$\sum_{i,j,k} u_{i,j,k}$, at $t=0$ against the same sum after the run, within a $2\%$
+tolerance.
 
 \subsection{Exact boundary invariant}
 
@@ -236,43 +252,53 @@ caught the defect in Section~\ref{sec:bug}.
 The checks above confirm the simulation is close to the analytic solution at one
 resolution; they do not confirm the scheme achieves its \emph{designed} second-order
 spatial accuracy as the mesh is refined. We measured the global $L_2$ relative error
-against the analytic solution over $n \in \{16, 32, 64, 128, 256\}$, evaluated at
+against an analytic reference over $n \in \{16, 32, 64, 128, 256\}$, evaluated at
 every grid point rather than only the center (a single point can show artificially
 elevated order from symmetry-driven error cancellation).
 
-A first attempt held $\Delta x = 1$ fixed and varied only $n$; this looked like mesh
-refinement but wasn't: the initial condition's width $\sigma_0 = 0.1n$ grew with $n$
+A first attempt held $\Delta x = 1$ fixed and varied only $n$. This looked like mesh
+refinement but was not. The initial condition's width $\sigma_0 = 0.1n$ grew with $n$
 while the simulated time stayed fixed, so the Fourier number
-$\mathrm{Fo} = \alpha t/\sigma_0^2$ shrank as $1/n^2$, so the blob diffused less at
-each ``finer'' resolution, a progressively easier target rather than a real accuracy
-test, producing a false order of $3.5$--$5$. Fixing the physical domain and
+$\mathrm{Fo} = \alpha t/\sigma_0^2$ shrank as $1/n^2$ and the blob diffused less at
+each ``finer'' resolution. Each level was thus a progressively easier target rather
+than a real accuracy test, producing a false order of $3.5$--$5$. Fixing the physical
+domain and
 $\sigma_0$ instead, and shrinking $\Delta x = L/n$, holds $\mathrm{Fo}$ approximately
 constant ($0.14$--$0.17$) across the sweep and gives the textbook order
-$\approx 2.04$ over $n=16$--$128$ (Table~\ref{tab:convergence}, Fig.~\ref{fig:convergence}).
-We report the fitted order over this range, where the asymptotic second-order regime
-is observed; the order degrades to $1.20$ between $n=128$ and $256$. The CFL limit
-ties $\Delta t \propto \Delta x^2$, so this refinement quadruples the step count at
-each level ($161$ steps at $n=128$, $641$ at $n=256$); accumulating that many
-single-precision increments onto an $O(1)$ field is a plausible source of the
-degradation, though we have not isolated it from the first-order-in-time forward
-Euler term with a controlled (e.g. double-precision) comparison.
+$\approx 2.04$ over $n=16$--$128$ against the Gaussian
+(Table~\ref{tab:convergence}, Fig.~\ref{fig:convergence}); the order then degrades to
+$1.20$ between $n=128$ and $256$.
+
+That degradation is a property of the reference, not the scheme. The Gaussian is the
+infinite-domain heat kernel, so on the finite box it carries a fixed modeling error
+that does not shrink under refinement, and once the discretization error falls below
+it the observed order must drop. Repeating the sweep against the exact finite-domain
+eigenmode of Eq.~\eqref{eq:cosine} confirms this: it holds order $\approx 2.00$ over
+$n=16$--$128$ with no such degradation, isolating the Gaussian result as a
+boundary-modeling floor rather than time integration or precision. The eigenmode
+error at $n=256$ instead reaches the single-precision floor ($\approx 10^{-5}$) and
+falls below the second-order trend, so its order is fit over $n=16$--$128$. The CFL
+link $\Delta t \propto \Delta x^2$ quadruples the step count at each level ($161$
+steps at $n=128$, $641$ at $n=256$), which is why precision becomes visible at the
+finest grid.
 
 Across all refinement levels, CPU and GPU solutions agreed to displayed precision at
 every grid point.
 
 \begin{table}[t]
 \centering
-\caption{Global $L_2$ relative error, fixed-domain refinement.}
+\caption{Global $L_2$ relative error under fixed-domain refinement, against the
+infinite-domain Gaussian and the exact finite-domain cosine eigenmode.}
 \label{tab:convergence}
-\begin{tabular}{@{}cc@{}}
+\begin{tabular}{@{}ccc@{}}
 \toprule
-$n$ & $L_2$ relative error \\
+$n$ & Gaussian & cosine \\
 \midrule
-16  & $8.30 \times 10^{-3}$ \\
-32  & $1.79 \times 10^{-3}$ \\
-64  & $4.29 \times 10^{-4}$ \\
-128 & $1.19 \times 10^{-4}$ \\
-256 & $5.20 \times 10^{-5}$ \\
+16  & $8.30 \times 10^{-3}$ & $2.96 \times 10^{-3}$ \\
+32  & $1.79 \times 10^{-3}$ & $7.41 \times 10^{-4}$ \\
+64  & $4.29 \times 10^{-4}$ & $1.84 \times 10^{-4}$ \\
+128 & $1.19 \times 10^{-4}$ & $4.62 \times 10^{-5}$ \\
+256 & $5.20 \times 10^{-5}$ & $5.74 \times 10^{-6}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -281,7 +307,9 @@ $n$ & $L_2$ relative error \\
 \centering
 \includegraphics[width=\linewidth]{figures/convergence.pdf}
 \caption{Global $L_2$ relative error vs. grid size for the invalid self-similar
-sweep and the corrected fixed-domain sweep, with the fitted order for the latter.}
+sweep, the fixed-domain Gaussian sweep, and the exact cosine eigenmode, with the
+fitted order for the cosine. The Gaussian bends up at $n=256$ (boundary-modeling
+floor); the cosine dips below the trend there (single-precision floor).}
 \label{fig:convergence}
 \end{figure}
 
@@ -304,7 +332,9 @@ NVIDIA GeForce RTX 3070, 8\,GB GDDR6 (256-bit bus, spec-sheet peak memory bandwi
 Software: Windows 11; CUDA 13.3.33; MSVC 19.44.35228 (Visual Studio 2022, toolset
 14.44); CMake 4.2.2 with Ninja. Both backends are built with \texttt{-O3} (CUDA and
 the non-MSVC host path) or \texttt{/O2} (MSVC host path) in Release configuration,
-with OpenMP enabled for the CPU backend.
+with OpenMP enabled for the CPU backend. These results characterize this
+implementation on this specific desktop system and should not be read as an
+architecture-independent CPU/GPU comparison.
 
 \begin{table}[t]
 \centering
@@ -366,18 +396,31 @@ update, giving $\mathrm{OI} \approx 0.5$ FLOP/byte. The RTX 3070's roofline ridg
 point is at $20.3\,\text{TFLOPS} / 448\,\text{GB/s} \approx 45$ FLOP/byte, two orders
 of magnitude above our $\mathrm{OI}$, which places this kernel firmly in the
 bandwidth-bound region of the roofline model regardless of the achieved fraction of
-peak bandwidth. Fig.~\ref{fig:roofline} plots this directly: the kernel's fixed
-$\mathrm{OI}=0.5$ sits far left of the ridge point, and its achieved performance
-(computed from $\mathrm{OI}$ and the \emph{measured} DRAM bandwidth below, not an
-independently measured FLOP count) climbs toward, but never reaches, the ceiling the
-memory roofline imposes at that intensity.
+peak bandwidth. This naive intensity is only a lower bound. The measured L2 reuse below
+($75$--$85\%$ hit rate) means the true DRAM traffic per cell falls below the no-reuse
+$32$ bytes, so the actual DRAM operational intensity exceeds $0.5$. Fig.~\ref{fig:roofline}
+therefore plots each kernel at its \emph{measured} operating point rather than the
+naive surrogate. The achieved FP32 rate is computed directly from the per-kernel
+duration as $16\,(n-2)^3/t_{\text{kernel}}$, and the achieved DRAM operational
+intensity as that rate divided by the measured DRAM bandwidth (Table~\ref{tab:derived}).
+At the large grids whose working set exceeds the $4\,$MB L2 ($n\geq128$), the achieved
+rate plateaus near $700\,$GFLOP/s at a DRAM operational intensity of
+$\approx1.7$--$1.9$ FLOP/byte. That intensity corresponds to $\approx9$ DRAM bytes per
+cell update, close to the compulsory minimum of $8$: one $4$-byte load of the current
+value and one $4$-byte store of the updated result. It sits well above the naive $0.5$
+but still roughly $25\times$ below the ridge point, so these points lie just under the
+bandwidth roof. The smaller grids ($n\leq64$) are L2-resident or launch-overhead-%
+dominated, so they fall well below the roof and do not represent the asymptotic
+regime.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/roofline.pdf}
-\caption{Roofline model for the RTX 3070. The kernel's fixed naive operational
-intensity (dashed line) sits far below the ridge point; achieved performance at each
-grid size climbs toward the ceiling that intensity imposes as the grid grows.}
+\caption{Roofline model for the RTX 3070. Each grid size is plotted at its measured
+operating point (actual DRAM operational intensity, actual achieved FP32 rate). The
+large, DRAM-bound grids ($n\geq128$) sit just under the bandwidth roof; the small,
+L2-resident grids ($n\leq64$) fall well below it. The ridge point is marked for
+reference.}
 \label{fig:roofline}
 \end{figure}
 
@@ -386,15 +429,23 @@ steady-state launch of \texttt{gpuIntegrateGridKernel} (\texttt{--launch-skip 2
 --launch-count 1}, skipping the first two launches to avoid driver/cache warm-up)
 across the full $8^3$--$512^3$ range of Table~\ref{tab:perf}, averaged over 5 of 6
 runs per size (first discarded as warm-up). Four metrics were collected
-individually (DRAM throughput, compute throughput, L2 hit rate, achieved
+individually (DRAM throughput, SM utilization, L2 hit rate, achieved
 occupancy; exact metric names in \texttt{scripts/profile.ps1}), not Nsight
 Compute's default full section set. Table~\ref{tab:ncu} shows achieved DRAM
 throughput rising from under $1\%$ of peak (under $4\,\text{GB/s}$) at $8^3$ cells to
-$91.1\%$ ($408\,\text{GB/s}$) at $512^3$, while compute throughput stays in a narrow
-$43$--$50\%$ band from $64^3$ onward and never approaches saturation, strong evidence
-that the kernel is memory-bandwidth-limited rather than compute-limited, not merely
-an inference from operational intensity (Table~\ref{tab:ncu}, Fig.~\ref{fig:utilization}).
-At $8^3$ and $16^3$, both DRAM and compute utilization are below $4\%$ and occupancy
+$91.1\%$ ($408\,\text{GB/s}$) at $512^3$. SM utilization (the metric
+\texttt{sm\_\_throughput.\allowbreak avg.\allowbreak pct\_of\_\allowbreak peak\_\allowbreak sustained\_\allowbreak elapsed})
+stays in a narrow $43$--$50\%$ band from $64^3$ onward and never approaches
+saturation. This metric aggregates the SM's sub-units (instruction issue, load/store,
+and arithmetic pipelines) rather than FP32 throughput alone, so it counts the kernel's
+substantial address-arithmetic and load/store activity and overstates the fraction of
+FP32 peak actually reached. The true FP32 utilization, computed directly from the
+kernel duration (Table~\ref{tab:derived}), is far lower, only $\approx3.4\%$ of peak
+at the largest grids against the $91\%$ of DRAM peak reached at the same sizes. The
+near-saturated DRAM throughput is therefore direct evidence that the kernel is
+memory-bandwidth-limited rather than compute-limited, not merely an inference from
+operational intensity (Table~\ref{tab:ncu}, Fig.~\ref{fig:utilization}).
+At $8^3$ and $16^3$, both DRAM and SM utilization fall below $4\%$ and occupancy
 drops to $28$--$30\%$, consistent with fixed kernel-launch overhead, not data
 movement, dominating runtime at those sizes. L2 hit rate stays in a $75$--$85\%$
 band across every size, consistent with substantial reuse of the stencil's
@@ -408,7 +459,7 @@ sample standard deviation over 5 of 6 runs per size (first discarded as warm-up)
 \resizebox{\linewidth}{!}{
 \begin{tabular}{@{}lrrrrr@{}}
 \toprule
-Grid size & DRAM \% & GB/s & Compute \% & L2 hit \% & Occupancy \% \\
+Grid size & DRAM \% & GB/s & SM util.\ \% & L2 hit \% & Occupancy \% \\
 \midrule
 $8^3$   & $0.8 \pm 0.4$  & $3.7 \pm 1.8$   & $0.2 \pm 0.0$  & $85.1 \pm 0.9$ & $27.5 \pm 0.3$ \\
 $16^3$  & $3.6 \pm 0.0$  & $16.2 \pm 0.1$  & $1.9 \pm 0.2$  & $78.9 \pm 1.3$ & $29.9 \pm 0.2$ \\
@@ -422,11 +473,30 @@ $512^3$ & $91.1 \pm 0.3$ & $408.2 \pm 1.2$ & $45.5 \pm 0.2$ & $74.6 \pm 0.1$ & $
 }
 \end{table}
 
+\begin{table}[t]
+\centering
+\caption{Derived kernel performance metrics.}
+\label{tab:derived}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Grid size & Duration ($\mu$s) & GFLOP/s & FP32 \% & $\mathrm{OI}_{\text{DRAM}}$ \\
+\midrule
+$8^3$   & $2.24$    & $1.5$   & $0.01$ & $0.41$ \\
+$16^3$  & $2.56$    & $19.6$  & $0.10$ & $1.21$ \\
+$32^3$  & $2.76$    & $156.2$ & $0.77$ & $3.04$ \\
+$64^3$  & $6.81$    & $560.0$ & $2.76$ & $2.39$ \\
+$128^3$ & $45.2$    & $708.1$ & $3.49$ & $1.91$ \\
+$256^3$ & $373.7$   & $701.7$ & $3.46$ & $1.73$ \\
+$512^3$ & $3035.2$  & $699.3$ & $3.44$ & $1.71$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{figures/utilization.pdf}
-\caption{DRAM and compute throughput (\% of peak) vs. grid size. DRAM throughput
-overtakes and pulls away from compute throughput beyond $64^3$ cells.}
+\caption{Achieved DRAM throughput and SM utilization (\% of peak) vs. grid size. DRAM
+throughput overtakes and pulls away from SM utilization beyond $64^3$ cells.}
 \label{fig:utilization}
 \end{figure}
 
@@ -456,15 +526,16 @@ genuine order $\approx 2$ (Section~\ref{sec:convergence}). With those issues res
 the GPU backend passes all verification checks (the analytic-solution, conservation,
 boundary-invariant, and convergence-order checks alike) and delivers a
 $60$--$68\times$ speedup over the OpenMP/SIMD CPU backend at grid sizes of $128^3$ and
-above, which profiler measurements show is consistent with the kernel's low naive
-operational intensity ($\approx 0.5$ FLOP/byte): DRAM throughput reaches $91\%$ of
-peak at $512^3$ cells while compute throughput never exceeds $50\%$.
+above, which profiler measurements show is consistent with the kernel's low operational
+intensity ($\approx 1.7$ FLOP/byte measured at the DRAM-bound sizes, against a ridge
+point of $45$): DRAM throughput reaches $91\%$ of peak at $512^3$ cells while the
+achieved FP32 rate is only $\approx3.4\%$ of peak.
 
 \subsection*{Artifact availability}
 
 Source code, build instructions, the verification and convergence test suite, and
 the benchmark and profiling scripts behind every result in this paper are publicly
-available at \href{https://github.com/karl-kes/3d-heat-solver}{github.com/karl-kes/3d-heat-solver}.
+available at \url{https://github.com/karl-kes/3d-heat-solver}.
 
 \begin{thebibliography}{9}
 
