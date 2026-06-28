@@ -30,9 +30,14 @@ compile_commands.json
 *.VC.db
 *.VC.opendb
 .claude
+.backboard
 
 # clangd
 .cache/
+
+# Python
+__pycache__/
+*.py[cod]
 
 # macOS
 .DS_Store
@@ -60,4 +65,7 @@ Thumbs.db
 *.toc
 *.tex.bak
 *.synctex(busy)
+
+# Paper generated data
+docs/data/*.csv
 docs/figures/*.pdf

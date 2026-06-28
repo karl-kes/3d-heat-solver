@@ -1,6 +1,6 @@
 #pragma once
 
-#include "macros.cuh"
+#include "real.cuh"
 
 #include <cmath>
 #include <cstddef>
@@ -8,28 +8,30 @@
 
 // Per-axis factor of finite-domain Neumann cosine eigenmode at cell-centered index on an n-cell axis (n-2 interior).
 CUDA_CALLABLE
-inline float cosine_mode(std::size_t index, std::size_t n) {
-  const float arg{
-    std::numbers::pi_v<float> * (static_cast<float>(index) - 0.5f) / static_cast<float>(n - 2)
+inline Real cosine_mode(std::size_t index, std::size_t n) {
+  const Real arg{
+    std::numbers::pi_v<Real> *
+      (static_cast<Real>(index) - static_cast<Real>(0.5)) /
+      static_cast<Real>(n - 2)
   };
-#if defined(__CUDACC__)
-  return cosf(arg);
-#else
-  return std::cos(arg);
-#endif
+  return real_cos(arg);
 }
 
-inline float neumann_decay_rate(
-  float alpha,
-  float dx, float dy, float dz,
+inline Real neumann_decay_rate(
+  Real alpha,
+  Real dx, Real dy, Real dz,
   std::size_t nx, std::size_t ny, std::size_t nz
 ) {
-  constexpr float pi_sq{
-    std::numbers::pi_v<float> * std::numbers::pi_v<float>
+  constexpr Real pi_sq{
+    std::numbers::pi_v<Real> * std::numbers::pi_v<Real>
   };
-  const float lx{static_cast<float>(nx - 2) * dx};
-  const float ly{static_cast<float>(ny - 2) * dy};
-  const float lz{static_cast<float>(nz - 2) * dz};
+  const Real lx{static_cast<Real>(nx - 2) * dx};
+  const Real ly{static_cast<Real>(ny - 2) * dy};
+  const Real lz{static_cast<Real>(nz - 2) * dz};
   
-  return alpha * pi_sq * (1.0f / (lx * lx) + 1.0f / (ly * ly) + 1.0f / (lz * lz));
+  return alpha * pi_sq * (
+    static_cast<Real>(1.0) / (lx * lx) +
+    static_cast<Real>(1.0) / (ly * ly) +
+    static_cast<Real>(1.0) / (lz * lz)
+  );
 }

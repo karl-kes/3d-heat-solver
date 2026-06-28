@@ -8,11 +8,11 @@ Grid::Grid(const Config& config)
 
 Grid::~Grid() = default;
 
-void Grid::copy_to_host(float* dst) const {
+void Grid::copy_to_host(Real* dst) const {
   const std::size_t total{total_size()};
 
 #if defined(__CUDACC__)
-  CUDA_CHECK(cudaMemcpy(dst, field(), total * sizeof(float), cudaMemcpyDeviceToHost));
+  CUDA_CHECK(cudaMemcpy(dst, field(), total * sizeof(Real), cudaMemcpyDeviceToHost));
 #else
   std::copy_n(field(), total, dst);
 #endif

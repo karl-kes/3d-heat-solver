@@ -3,6 +3,8 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $sizes = @(8, 16, 32, 64, 128, 256, 512)
 $steps = 1000
 $results = @()
+$csvRows = @()
+$csvPath = Join-Path $projectRoot 'docs/data/benchmark.csv'
 
 Write-Host "Building..." -ForegroundColor Cyan
 & "$PSScriptRoot\run.ps1" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 | Out-Null
@@ -57,9 +59,21 @@ foreach ($size in $sizes) {
     Speedup_StdDev = Format-Sig3 $speedupStdDev
   }
 
+  $csvRows += [PSCustomObject]@{
+    size = $size
+    cpu_ms = $cpu.Mean
+    cpu_std = $cpu.StdDev
+    gpu_ms = $gpu.Mean
+    gpu_std = $gpu.StdDev
+  }
+
   Write-Host "CPU: $(Format-Sig3 $cpu.Mean) +/- $(Format-Sig3 $cpu.StdDev) ms | GPU: $(Format-Sig3 $gpu.Mean) +/- $(Format-Sig3 $gpu.StdDev) ms | Speedup: $(Format-Sig3 $speedup) +/- $(Format-Sig3 $speedupStdDev)x"
 }
 
 Write-Host ""
 Write-Host "=== Summary ===" -ForegroundColor Green
 $results | Format-Table -AutoSize
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $csvPath) | Out-Null
+$csvRows | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Set-Content -Encoding ASCII $csvPath
+Write-Host "Wrote $csvPath" -ForegroundColor Green

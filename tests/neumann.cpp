@@ -8,8 +8,8 @@
 
 namespace {
 
-std::vector<float> field_snapshot(const Grid& grid) {
-  std::vector<float> field(grid.p_nx() * grid.p_ny() * grid.p_nz());
+std::vector<Real> field_snapshot(const Grid& grid) {
+  std::vector<Real> field(grid.p_nx() * grid.p_ny() * grid.p_nz());
   grid.copy_to_host(field.data());
   return field;
 }
@@ -19,8 +19,8 @@ std::vector<float> field_snapshot(const Grid& grid) {
 int main() {
   Config cfg{};
   cfg.nx = cfg.ny = cfg.nz = 64;
-  cfg.dx = cfg.dy = cfg.dz = 1.0f;
-  cfg.alpha = 1.0f;
+  cfg.dx = cfg.dy = cfg.dz = static_cast<Real>(1.0);
+  cfg.alpha = static_cast<Real>(1.0);
   cfg.ic = InitCondition::NeumannCosine;
   cfg.output_interval = 0;
   cfg.total_steps = 200;
@@ -29,26 +29,26 @@ int main() {
   Simulation sim{cfg};
   sim.run();
   const Grid& grid{sim.grid()};
-  const std::vector<float> field{field_snapshot(grid)};
+  const std::vector<Real> field{field_snapshot(grid)};
 
   // Exact finite-box solution: u = prod cos(pi r/L) * exp(-lambda t), du/dn=0 on every face.
-  const float t{static_cast<float>(cfg.total_steps) * cfg.dt};
-  const float lambda{neumann_decay_rate(cfg.alpha, cfg.dx, cfg.dy, cfg.dz, cfg.nx, cfg.ny, cfg.nz)};
-  const float decay{std::exp(-lambda * t)};
+  const Real t{static_cast<Real>(cfg.total_steps) * cfg.dt};
+  const Real lambda{neumann_decay_rate(cfg.alpha, cfg.dx, cfg.dy, cfg.dz, cfg.nx, cfg.ny, cfg.nz)};
+  const Real decay{std::exp(-lambda * t)};
 
   // Check 1: global L2 relative error against the analytic solution over the interior.
   double sq_error_sum{};
   double sq_expected_sum{};
   for (std::size_t k{1}; k < cfg.nz - 1; ++k) {
 
-    const float cz{cosine_mode(k, cfg.nz)};
+    const Real cz{cosine_mode(k, cfg.nz)};
     for (std::size_t j{1}; j < cfg.ny - 1; ++j) {
 
-      const float cy{cosine_mode(j, cfg.ny)};
+      const Real cy{cosine_mode(j, cfg.ny)};
       for (std::size_t i{1}; i < cfg.nx - 1; ++i) {
-        const float cx{cosine_mode(i, cfg.nx)};
-        const float expected{cx * cy * cz * decay};
-        const float actual{field[grid.idx(i, j, k)]};
+        const Real cx{cosine_mode(i, cfg.nx)};
+        const Real expected{cx * cy * cz * decay};
+        const Real actual{field[grid.idx(i, j, k)]};
         const double diff{static_cast<double>(actual) - static_cast<double>(expected)};
 
         sq_error_sum += diff * diff;

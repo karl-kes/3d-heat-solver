@@ -11,7 +11,7 @@ Both backends live in the same `.cu`/`.cuh` files. CUDA support is optional; the
 
 [`docs/paper.pdf`](docs/paper.pdf) is a short IEEE-style writeup of the project: the numerical method, the dual-backend design, the verification methodology, a real GPU boundary-condition bug it caught, and the performance results below with discussion.
 
-To rebuild it: `pip install -r` [`docs/requirements.txt`](docs/requirements.txt), then [`python docs/generate_plots.py`](docs/generate_plots.py), [`python docs/convergence.py`](docs/convergence.py), and [`python docs/ncu_plots.py`](docs/ncu_plots.py), then `pdflatex` [`paper.tex`](docs/paper.tex) (twice, to resolve references) from `docs/`. The Nsight Compute data behind `ncu_plots.py` comes from [`scripts/profile.ps1`](scripts/profile.ps1), which must be run from an elevated PowerShell since it needs GPU performance-counter access.
+To rebuild it completely: `pip install -r` [`docs/requirements.txt`](docs/requirements.txt), then run [`scripts/build-paper.ps1`](scripts/build-paper.ps1) or [`scripts/build-paper.sh`](scripts/build-paper.sh). That script regenerates the CSV inputs, figures, LaTeX tables, and `paper.pdf`. The profiling step calls [`scripts/profile.ps1`](scripts/profile.ps1) / [`scripts/profile.sh`](scripts/profile.sh) and must be run from an elevated shell since it needs GPU performance-counter access; use `-SkipProfile` or `--skip-profile` to rebuild from the existing Nsight CSV.
 
 ## Performance
 
@@ -33,13 +33,13 @@ Nsight Compute profiling of the integration kernel, average of 5 runs (6 total, 
 
 | Grid size | DRAM % | SM util. % | L2 hit % | Occupancy % |
 |-----------|--------|-----------|----------|--------------|
-| 8³        | 0.7    | 0.2       | 82.4     | 27.8         |
-| 16³       | 3.1    | 1.9       | 71.9     | 29.6         |
-| 32³       | 11.6   | 12.9      | 76.3     | 41.8         |
-| 64³       | 54.5   | 42.7      | 76.9     | 77.0         |
-| 128³      | 82.9   | 50.4      | 78.5     | 77.6         |
-| 256³      | 90.5   | 46.2      | 74.8     | 79.6         |
-| 512³      | 91.1   | 45.4      | 74.5     | 78.9         |
+| 8³        | 0.8    | 0.2       | 85.1     | 27.5         |
+| 16³       | 3.6    | 1.9       | 78.9     | 29.9         |
+| 32³       | 11.5   | 13.3      | 76.5     | 41.5         |
+| 64³       | 52.4   | 43.2      | 76.9     | 76.9         |
+| 128³      | 82.9   | 50.4      | 78.4     | 77.1         |
+| 256³      | 90.6   | 45.6      | 74.6     | 79.6         |
+| 512³      | 91.1   | 45.5      | 74.6     | 78.9         |
 
 DRAM throughput overtakes and pulls away from SM utilization beyond 64³, confirming the kernel is memory-bandwidth-bound rather than compute-bound. ("SM util." is `sm__throughput.avg.pct_of_peak_sustained_elapsed`, an aggregate over the SM's sub-units, not FP32 throughput specifically, so the actual FP32 fraction of peak is lower still.) At 8³/16³, both are under 4% with occupancy in the high 20s, consistent with fixed kernel-launch overhead, not data movement, dominating runtime at those sizes.
 
@@ -55,18 +55,22 @@ DRAM throughput overtakes and pulls away from SM utilization beyond 64³, confir
 From PowerShell, using the helper scripts in `scripts/`:
 
 ```powershell
-.\scripts\run.ps1              # CUDA build (build/) + run
-.\scripts\run.ps1 --cuda-off   # CPU-only build (build-nocuda/) + run
+.\scripts\run.ps1                       # CUDA float build (build/) + run
+.\scripts\run.ps1 --double              # CUDA double build (build/) + run
+.\scripts\run.ps1 --cuda-off            # CPU-only float build (build-nocuda/) + run
+.\scripts\run.ps1 --cuda-off --double   # CPU-only double build (build-nocuda/) + run
 ```
 
 or on a POSIX shell:
 
 ```bash
 ./scripts/run.sh
+./scripts/run.sh --double
 ./scripts/run.sh --cuda-off
+./scripts/run.sh --cuda-off --double
 ```
 
-Both scripts configure and build via `vcvars64.bat` + CMake/Ninja, then run the resulting `heat_solver.exe`. Any extra arguments are forwarded to the executable, e.g. `.\scripts\run.ps1 --nx 128 --steps 500`.
+Both scripts configure and build via `vcvars64.bat` + CMake/Ninja, then run the resulting `heat_solver.exe`. Use `--precision float`, `--precision double`, `--float`, or `--double` to select the `Real` scalar type. Any extra arguments are forwarded to the executable, e.g. `.\scripts\run.ps1 --double --nx 128 --steps 500`.
 
 Manually, from the project root:
 
@@ -83,6 +87,8 @@ cmake -S . -B build-nocuda -DHEAT_SOLVER_ENABLE_CUDA=OFF
 cmake --build build-nocuda
 .\build-nocuda\heat_solver.exe
 ```
+
+To switch the solver scalar type from the default `float` to `double`, configure with `-DHEAT_SOLVER_PRECISION=double` and rebuild. The central C++ type alias is `Real` in `src/utilities/real.cuh`.
 
 ## Configuration
 
@@ -112,8 +118,11 @@ ctest --test-dir build --output-on-failure
 - [`tests/neumann.cpp`](tests/neumann.cpp): global L2 error against the exact finite-domain Neumann eigenfunction, a cosine product satisfying `du/dn = 0` on every face exactly, so it carries no infinite-domain modeling error.
 - [`tests/config.cpp`](tests/config.cpp): CLI parsing, defaults, overrides, and that `dt` is always re-derived rather than left stale.
 - [`tests/aligned_soa.cpp`](tests/aligned_soa.cpp): alignment-rounding math and zero-initialization of the underlying SoA storage.
+- [`tests/initialization.cpp`](tests/initialization.cpp): zero-step Gaussian and cosine initialization over every grid point, including boundary/ghost layers.
+- [`tests/convergence_order.cpp`](tests/convergence_order.cpp): lightweight cosine-eigenmode refinement check for approximately second-order convergence.
+- CTest also includes expected-failure CLI validation checks for invalid grid size, diffusivity, and spacing.
 
-`physics` and `neumann` run in both `build/` (CUDA) and `build-nocuda/` (CPU). Since each independently checks against the known-correct analytic solution, both passing also serves as the CPU/GPU parity check. GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs this for real on the CPU backend; the CUDA backend only gets a compile check in CI, since GitHub-hosted runners have no GPU to run it on.
+The full CTest suite runs in both `build/` (CUDA, when a GPU is present) and `build-nocuda/` (CPU). GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the CPU test suite for both `float` and `double`; the CUDA backend gets float/double compile checks in CI, since GitHub-hosted runners have no GPU to execute CUDA kernels.
 
 ## Output
 

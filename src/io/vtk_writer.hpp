@@ -20,6 +20,17 @@ namespace detail {
            ((v & 0x000000FFu) << 24);
   }
 
+  inline uint64_t bswap64(uint64_t v) {
+    return ((v & 0xFF00000000000000ull) >> 56) |
+           ((v & 0x00FF000000000000ull) >> 40) |
+           ((v & 0x0000FF0000000000ull) >> 24) |
+           ((v & 0x000000FF00000000ull) >>  8) |
+           ((v & 0x00000000FF000000ull) <<  8) |
+           ((v & 0x0000000000FF0000ull) << 24) |
+           ((v & 0x000000000000FF00ull) << 40) |
+           ((v & 0x00000000000000FFull) << 56);
+  }
+
   inline const std::filesystem::path& output_dir() {
     static const std::filesystem::path dir{"out"};
 
@@ -53,31 +64,43 @@ inline void write(const Grid& grid, std::size_t step) {
       << "ORIGIN 0 0 0\n"
       << "SPACING " << grid.dx() << ' ' << grid.dy() << ' ' << grid.dz() << '\n'
       << "POINT_DATA " << nx * ny * nz << '\n'
-      << "SCALARS temperature float 1\n"
+      << "SCALARS temperature " << (sizeof(Real) == sizeof(float) ? "float" : "double") << " 1\n"
       << "LOOKUP_TABLE default\n";
 
   const std::size_t padded_total{grid.total_size()};
-  std::vector<float> host_field(padded_total);
+  std::vector<Real> host_field(padded_total);
   grid.copy_to_host(host_field.data());
-  const float* u{host_field.data()};
-
-  std::vector<uint32_t> row(nx);
+  const Real* u{host_field.data()};
 
   for (std::size_t k{}; k < nz; ++k) {
     for (std::size_t j{}; j < ny; ++j) {
-      for (std::size_t i{}; i < nx; ++i) {
-        float val{u[grid.idx(i, j, k)]};
+      if constexpr (sizeof(Real) == sizeof(float)) {
+        std::vector<uint32_t> row(nx);
+        for (std::size_t i{}; i < nx; ++i) {
+          const float val{static_cast<float>(u[grid.idx(i, j, k)])};
+          uint32_t bits;
+          std::memcpy(&bits, &val, sizeof(bits));
+          row[i] = detail::bswap32(bits);
+        }
 
-        uint32_t bits;
-        std::memcpy(&bits, &val, 4);
+        out.write(
+          reinterpret_cast<const char*>(row.data()),
+          static_cast<std::streamsize>(nx * sizeof(uint32_t))
+        );
+      } else {
+        std::vector<uint64_t> row(nx);
+        for (std::size_t i{}; i < nx; ++i) {
+          const double val{static_cast<double>(u[grid.idx(i, j, k)])};
+          uint64_t bits;
+          std::memcpy(&bits, &val, sizeof(bits));
+          row[i] = detail::bswap64(bits);
+        }
 
-        row[i] = detail::bswap32(bits);
+        out.write(
+          reinterpret_cast<const char*>(row.data()),
+          static_cast<std::streamsize>(nx * sizeof(uint64_t))
+        );
       }
-
-      out.write(
-        reinterpret_cast<const char*>(row.data()),
-        static_cast<std::streamsize>(nx * sizeof(uint32_t))
-      );
     }
   }
 }

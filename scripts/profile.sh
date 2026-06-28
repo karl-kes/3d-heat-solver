@@ -9,6 +9,7 @@ EXE="$PROJECT_ROOT/build/heat_solver.exe"
 METRICS="dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed,lts__t_sector_hit_rate.pct,sm__warps_active.avg.pct_of_peak_sustained_active,gpu__time_duration.sum"
 
 SIZES=(8 16 32 64 128 256 512)
+CSV_PATH="$PROJECT_ROOT/docs/data/ncu.csv"
 
 echo "Building..."
 "$SCRIPT_DIR/run.sh" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 > /dev/null
@@ -52,6 +53,8 @@ mean_stddev() {
 }
 
 declare -a SUMMARY=()
+mkdir -p "$(dirname "$CSV_PATH")"
+printf 'nx,dram_pct,dram_std,sm_pct,sm_std,l2_hit_pct,l2_hit_std,occupancy_pct,occupancy_std,duration_ns\n' > "$CSV_PATH"
 
 for size in "${SIZES[@]}"; do
   echo "=== Grid size: ${size}^3 ==="
@@ -74,6 +77,8 @@ for size in "${SIZES[@]}"; do
   read -r dur_mean dur_std <<< "$(mean_stddev "${dur_vals[@]:1:5}")"
 
   SUMMARY+=("${size}^3 | DRAM ${dram_mean}+/-${dram_std}% | Compute ${compute_mean}+/-${compute_std}% | L2 hit ${l2_mean}+/-${l2_std}% | Occupancy ${occ_mean}+/-${occ_std}% | Duration ${dur_mean}+/-${dur_std}ns")
+  printf '%s,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n' \
+    "$size" "$dram_mean" "$dram_std" "$compute_mean" "$compute_std" "$l2_mean" "$l2_std" "$occ_mean" "$occ_std" "$dur_mean" >> "$CSV_PATH"
 
   echo "DRAM: ${dram_mean} +/- ${dram_std}% | Compute: ${compute_mean} +/- ${compute_std}% | L2 hit: ${l2_mean} +/- ${l2_std}% | Occupancy: ${occ_mean} +/- ${occ_std}% | Duration: ${dur_mean} +/- ${dur_std} ns"
 done
@@ -81,3 +86,4 @@ done
 echo ""
 echo "=== Summary ==="
 printf '%s\n' "${SUMMARY[@]}"
+echo "Wrote $CSV_PATH"

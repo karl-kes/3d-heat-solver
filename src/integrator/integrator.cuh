@@ -6,8 +6,8 @@
 
 class Integrator {
 private:
-  float dt_;
-  float alpha_;
+  Real dt_;
+  Real alpha_;
 
 public:
   explicit Integrator(const Config& config);
@@ -15,8 +15,8 @@ public:
 
   virtual void integrate(const Grid& old_grid, Grid& new_grid) = 0;
 
-  float dt() const { return dt_; }
-  float alpha() const { return alpha_; }
+  Real dt() const { return dt_; }
+  Real alpha() const { return alpha_; }
 };
 
 class ExplicitEuler : public Integrator {

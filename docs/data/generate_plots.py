@@ -26,15 +26,19 @@ matplotlib.rcParams.update(
     }
 )
 
-FIGURES_DIR = Path(__file__).resolve().parent / "figures"
+DOCS_DIR = Path(__file__).resolve().parents[1]
+FIGURES_DIR = DOCS_DIR / "figures"
 FIGURES_DIR.mkdir(exist_ok=True)
+DATA_DIR = Path(__file__).resolve().parent
+TABLES_DIR = DOCS_DIR / "tables"
+TABLES_DIR.mkdir(exist_ok=True)
 
-# Measured by scripts/benchmark.ps1 (mean over 5 of 6 runs); mirror tab:perf.
-sizes = np.array([8, 16, 32, 64, 128, 256, 512])
-cpu_ms = np.array([3.40, 12.6, 71.8, 518, 3768, 28910, 226716])
-cpu_std = np.array([0.701, 0.532, 1.43, 22.8, 49.7, 119, 900])
-gpu_ms = np.array([25.5, 34.4, 26.5, 28.4, 62.6, 444, 3339])
-gpu_std = np.array([5.94, 6.22, 6.44, 1.84, 0.624, 0.160, 0.991])
+benchmark = np.genfromtxt(DATA_DIR / "benchmark.csv", delimiter=",", names=True)
+sizes = benchmark["size"].astype(int)
+cpu_ms = benchmark["cpu_ms"]
+cpu_std = benchmark["cpu_std"]
+gpu_ms = benchmark["gpu_ms"]
+gpu_std = benchmark["gpu_std"]
 speedup = cpu_ms / gpu_ms
 # standard error propagation for a ratio of two independent quantities
 speedup_std = speedup * np.sqrt((cpu_std / cpu_ms) ** 2 + (gpu_std / gpu_ms) ** 2)
@@ -85,4 +89,33 @@ style_axes(ax)
 fig.tight_layout(pad=0.4)
 fig.savefig(FIGURES_DIR / "speedup.pdf", bbox_inches="tight")
 
-print(f"wrote {FIGURES_DIR / 'runtime.pdf'} and {FIGURES_DIR / 'speedup.pdf'}")
+def latex_num(value):
+    if value == 0:
+        return "0"
+    abs_value = abs(value)
+    if abs_value >= 1000:
+        return f"{value:,.0f}".replace(",", "{,}")
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}"
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3g}"
+
+
+with open(TABLES_DIR / "perf.tex", "w", encoding="utf-8") as out:
+    out.write("\\begin{tabular}{@{}lrrr@{}}\n")
+    out.write("\\toprule\n")
+    out.write("Grid size & CPU (ms) & GPU (ms) & Speedup \\\\\n")
+    out.write("\\midrule\n")
+    for n, c, cs, g, gs, s, ss in zip(sizes, cpu_ms, cpu_std, gpu_ms, gpu_std, speedup, speedup_std):
+        out.write(
+            f"${int(n)}^3$ & ${latex_num(c)} \\pm {latex_num(cs)}$ & "
+            f"${latex_num(g)} \\pm {latex_num(gs)}$ & ${latex_num(s)} \\pm {latex_num(ss)}\\times$ \\\\\n"
+        )
+    out.write("\\bottomrule\n")
+    out.write("\\end{tabular}\n")
+
+print(f"wrote {FIGURES_DIR / 'runtime.pdf'}, {FIGURES_DIR / 'speedup.pdf'}, and {TABLES_DIR / 'perf.tex'}")
+

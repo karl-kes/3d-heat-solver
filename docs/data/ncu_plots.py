@@ -26,16 +26,24 @@ matplotlib.rcParams.update(
     }
 )
 
-FIGURES_DIR = Path(__file__).resolve().parent / "figures"
+DOCS_DIR = Path(__file__).resolve().parents[1]
+FIGURES_DIR = DOCS_DIR / "figures"
 FIGURES_DIR.mkdir(exist_ok=True)
+DATA_DIR = Path(__file__).resolve().parent
+TABLES_DIR = DOCS_DIR / "tables"
+TABLES_DIR.mkdir(exist_ok=True)
 
-# Measured by scripts/profile.ps1 (mean over 5 of 6 runs); mirror tab:ncu.
-nx = np.array([8, 16, 32, 64, 128, 256, 512])
-dram_pct = np.array([0.83, 3.62, 11.49, 52.4, 82.93, 90.57, 91.12])
-dram_std = np.array([0.4, 0.03, 0.26, 0.56, 0.2, 0.04, 0.27])
-compute_pct = np.array([0.2, 1.89, 13.29, 43.2, 50.4, 45.58, 45.54])
-compute_std = np.array([0.02, 0.19, 0.1, 0.36, 0.13, 1.59, 0.21])
-duration_ns = np.array([2240, 2560, 2764.8, 6809.6, 45196.8, 373670.4, 3035155.2])
+data = np.genfromtxt(DATA_DIR / "ncu.csv", delimiter=",", names=True)
+nx = data["nx"].astype(int)
+dram_pct = data["dram_pct"]
+dram_std = data["dram_std"]
+compute_pct = data["sm_pct"]
+compute_std = data["sm_std"]
+l2_hit_pct = data["l2_hit_pct"]
+l2_hit_std = data["l2_hit_std"]
+occupancy_pct = data["occupancy_pct"]
+occupancy_std = data["occupancy_std"]
+duration_ns = data["duration_ns"]
 
 PEAK_BW_GBPS = 448.0
 PEAK_FLOPS_GFLOPS = 20300.0
@@ -117,9 +125,54 @@ ax.legend(frameon=False, loc="upper left", fontsize=6.5)
 fig.tight_layout(pad=0.4)
 fig.savefig(FIGURES_DIR / "roofline.pdf", bbox_inches="tight")
 
-print(f"wrote {FIGURES_DIR / 'utilization.pdf'} and {FIGURES_DIR / 'roofline.pdf'}")
+def latex_num(value):
+    if value == 0:
+        return "0"
+    abs_value = abs(value)
+    if abs_value >= 1000:
+        return f"{value:,.0f}".replace(",", "{,}")
+    if abs_value >= 100:
+        return f"{value:.0f}"
+    if abs_value >= 10:
+        return f"{value:.1f}"
+    if abs_value >= 1:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    return f"{value:.3g}"
 
-# Derived quantities for paper.tex's tab:derived (kept in sync by hand).
+
+with open(TABLES_DIR / "ncu.tex", "w", encoding="utf-8") as out:
+    out.write("\\resizebox{\\linewidth}{!}{\n")
+    out.write("\\begin{tabular}{@{}lrrrrr@{}}\n")
+    out.write("\\toprule\n")
+    out.write("Grid size & DRAM \\% & GB/s & SM util.\\ \\% & L2 hit \\% & Occupancy \\% \\\\\n")
+    out.write("\\midrule\n")
+    for n, d, ds, bw, c, cs, l2, l2s, occ, occs in zip(
+        nx, dram_pct, dram_std, achieved_bw_gbps,
+        compute_pct, compute_std, l2_hit_pct, l2_hit_std, occupancy_pct, occupancy_std
+    ):
+        out.write(
+            f"${int(n)}^3$ & ${latex_num(d)} \\pm {latex_num(ds)}$ & ${latex_num(bw)}$ & "
+            f"${latex_num(c)} \\pm {latex_num(cs)}$ & ${latex_num(l2)} \\pm {latex_num(l2s)}$ & "
+            f"${latex_num(occ)} \\pm {latex_num(occs)}$ \\\\\n"
+        )
+    out.write("\\bottomrule\n")
+    out.write("\\end{tabular}\n")
+    out.write("}\n")
+
+with open(TABLES_DIR / "derived.tex", "w", encoding="utf-8") as out:
+    out.write("\\begin{tabular}{@{}lrrrr@{}}\n")
+    out.write("\\toprule\n")
+    out.write("Grid size & Duration ($\\mu$s) & GFLOP/s & FP32 \\% & $\\mathrm{OI}_{\\text{DRAM}}$ \\\\\n")
+    out.write("\\midrule\n")
+    for n, du, gf, fp, oi in zip(nx, duration_ns, achieved_gflops, fp32_pct, oi_dram):
+        out.write(f"${int(n)}^3$ & ${latex_num(du / 1e3)}$ & ${latex_num(gf)}$ & ${latex_num(fp)}$ & ${latex_num(oi)}$ \\\\\n")
+    out.write("\\bottomrule\n")
+    out.write("\\end{tabular}\n")
+
+print(f"wrote {FIGURES_DIR / 'utilization.pdf'}, {FIGURES_DIR / 'roofline.pdf'}, {TABLES_DIR / 'ncu.tex'}, and {TABLES_DIR / 'derived.tex'}")
+
+# Derived quantities for paper.tex's tab:derived.
 print("\nn    dur(us)   GFLOP/s   FP32%   OI_DRAM")
 for n_val, du, gf, fp, oi in zip(nx, duration_ns, achieved_gflops, fp32_pct, oi_dram):
     print(f"{n_val:<4} {du/1e3:>8.2f} {gf:>9.1f} {fp:>7.2f} {oi:>8.2f}")
+

@@ -32,7 +32,7 @@ int main() {
   // dt is always re-derived from alpha/dx/dy/dz, never left stale
   {
     const Config cfg{parse({"--alpha", "2.0"})};
-    const float expected_dt{Config::stable_dt(cfg.alpha, cfg.dx, cfg.dy, cfg.dz)};
+    const Real expected_dt{Config::stable_dt(cfg.alpha, cfg.dx, cfg.dy, cfg.dz)};
     if (cfg.dt != expected_dt) { return 1; }
   }
 

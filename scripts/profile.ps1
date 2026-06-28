@@ -5,6 +5,8 @@ $exe = "$projectRoot\build\heat_solver.exe"
 $sizes = @(8, 16, 32, 64, 128, 256, 512)
 $metrics = "dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed,lts__t_sector_hit_rate.pct,sm__warps_active.avg.pct_of_peak_sustained_active,gpu__time_duration.sum"
 $results = @()
+$csvRows = @()
+$csvPath = Join-Path $projectRoot 'docs/data/ncu.csv'
 
 Write-Host "Building..." -ForegroundColor Cyan
 & "$PSScriptRoot\run.ps1" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 | Out-Null
@@ -75,6 +77,19 @@ foreach ($size in $sizes) {
   }
   $results += $row
 
+  $csvRows += [PSCustomObject]@{
+    nx = $size
+    dram_pct = $dram.Mean
+    dram_std = $dram.StdDev
+    sm_pct = $compute.Mean
+    sm_std = $compute.StdDev
+    l2_hit_pct = $l2.Mean
+    l2_hit_std = $l2.StdDev
+    occupancy_pct = $occ.Mean
+    occupancy_std = $occ.StdDev
+    duration_ns = $dur.Mean
+  }
+
   Write-Host ("DRAM: {0} +/- {1}% | Compute: {2} +/- {3}% | L2 hit: {4} +/- {5}% | Occupancy: {6} +/- {7}% | Duration: {8} +/- {9} ns" -f `
     $row.DRAM_pct, $row.DRAM_StdDev, $row.Compute_pct, $row.Compute_StdDev, `
     $row.L2Hit_pct, $row.L2Hit_StdDev, $row.Occupancy_pct, $row.Occupancy_StdDev, `
@@ -84,3 +99,7 @@ foreach ($size in $sizes) {
 Write-Host ""
 Write-Host "=== Summary ===" -ForegroundColor Green
 $results | Format-Table -AutoSize
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $csvPath) | Out-Null
+$csvRows | ConvertTo-Csv -NoTypeInformation | ForEach-Object { $_ -replace '"', '' } | Set-Content -Encoding ASCII $csvPath
+Write-Host "Wrote $csvPath" -ForegroundColor Green

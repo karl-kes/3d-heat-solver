@@ -1,6 +1,6 @@
 #pragma once
 
-#include "macros.cuh"
+#include "real.cuh"
 
 #include <algorithm>
 #include <cstddef>

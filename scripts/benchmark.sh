@@ -6,13 +6,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SIZES=(8 16 32 64 128 256 512)
 STEPS=1000
+CSV_PATH="$PROJECT_ROOT/docs/data/benchmark.csv"
 
 echo "Building..."
 "$SCRIPT_DIR/run.sh" --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 > /dev/null
 "$SCRIPT_DIR/run.sh" --cuda-off --nx 8 --ny 8 --nz 8 --steps 1 --output-interval 0 > /dev/null
 
-# Runs the exe 6 times at the given grid size, discards the first, averages the remaining 5.
-run_average() {
+# Runs the exe 6 times at the given grid size, discards the first, prints "mean stddev" for the remaining 5.
+run_stats() {
   local exe_path="$1"
   local size="$2"
   local times=()
@@ -23,7 +24,7 @@ run_average() {
     times+=("$ms")
   done
   awk -v a="${times[1]}" -v b="${times[2]}" -v c="${times[3]}" -v d="${times[4]}" -v e="${times[5]}" \
-    'BEGIN { printf "%.10f", (a+b+c+d+e)/5 }'
+    'BEGIN { mean=(a+b+c+d+e)/5; var=((a-mean)^2+(b-mean)^2+(c-mean)^2+(d-mean)^2+(e-mean)^2)/4; printf "%.10f %.10f", mean, sqrt(var) }'
 }
 
 # Rounds a value to 3 significant figures.
@@ -40,12 +41,14 @@ format_sig3() {
 }
 
 declare -a SUMMARY=()
+mkdir -p "$(dirname "$CSV_PATH")"
+printf 'size,cpu_ms,cpu_std,gpu_ms,gpu_std\n' > "$CSV_PATH"
 
 for size in "${SIZES[@]}"; do
   echo "=== Grid size: ${size}^3 ==="
 
-  gpu_avg="$(run_average "$PROJECT_ROOT/build/heat_solver.exe" "$size")"
-  cpu_avg="$(run_average "$PROJECT_ROOT/build-nocuda/heat_solver.exe" "$size")"
+  read -r gpu_avg gpu_std <<< "$(run_stats "$PROJECT_ROOT/build/heat_solver.exe" "$size")"
+  read -r cpu_avg cpu_std <<< "$(run_stats "$PROJECT_ROOT/build-nocuda/heat_solver.exe" "$size")"
   speedup="$(awk -v c="$cpu_avg" -v g="$gpu_avg" 'BEGIN { printf "%.10f", c/g }')"
 
   cpu_fmt="$(format_sig3 "$cpu_avg")"
@@ -53,6 +56,7 @@ for size in "${SIZES[@]}"; do
   speedup_fmt="$(format_sig3 "$speedup")"
 
   SUMMARY+=("${size}^3 | ${cpu_fmt} ms | ${gpu_fmt} ms | ${speedup_fmt}x")
+  printf '%s,%.10f,%.10f,%.10f,%.10f\n' "$size" "$cpu_avg" "$cpu_std" "$gpu_avg" "$gpu_std" >> "$CSV_PATH"
 
   echo "CPU: ${cpu_fmt} ms | GPU: ${gpu_fmt} ms | Speedup: ${speedup_fmt}x"
 done
@@ -60,3 +64,4 @@ done
 echo ""
 echo "=== Summary ==="
 printf '%s\n' "${SUMMARY[@]}"
+echo "Wrote $CSV_PATH"
