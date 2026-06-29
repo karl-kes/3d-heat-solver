@@ -1,5 +1,6 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
+#include "cuda_test_guard.cuh"
 #include "utilities/helpers.cuh"
 
 #include <cmath>
@@ -7,6 +8,8 @@
 #include <vector>
 
 int main(int argc, char** argv) {
+  HEAT_SOLVER_SKIP_CUDA_TEST_IF_UNAVAILABLE();
+
   const Config cfg{Config::parse(argc, argv)};
 
   Simulation sim{cfg};

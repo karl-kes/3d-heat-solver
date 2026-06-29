@@ -1,5 +1,6 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
+#include "cuda_test_guard.cuh"
 #include "utilities/helpers.cuh"
 
 #include <array>
@@ -54,6 +55,8 @@ double cosine_l2_error(std::size_t n) {
 } // namespace
 
 int main() {
+  HEAT_SOLVER_SKIP_CUDA_TEST_IF_UNAVAILABLE();
+
   constexpr std::array<std::size_t, 3> sizes{16, 32, 64};
   std::array<double, sizes.size()> errors{};
 

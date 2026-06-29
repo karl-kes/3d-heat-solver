@@ -26,11 +26,30 @@ if(HEAT_SOLVER_ENABLE_CUDA)
   endif()
 endif()
 
-add_library(heat_solver_core STATIC
-  src/config/config.cpp
+set(HEAT_SOLVER_CORE_CUDA_SOURCES
   src/grid/grid.cu
   src/simulation/simulation.cu
   src/integrator/integrator.cu
+)
+
+set(HEAT_SOLVER_TEST_SOURCES
+  tests/physics.cu
+  tests/neumann.cu
+  tests/config.cu
+  tests/aligned_soa.cu
+  tests/initialization.cu
+  tests/convergence_order.cu
+  tests/convergence.cu
+)
+
+set(HEAT_SOLVER_CUDA_EXTENSION_SOURCES
+  ${HEAT_SOLVER_CORE_CUDA_SOURCES}
+  ${HEAT_SOLVER_TEST_SOURCES}
+)
+
+add_library(heat_solver_core STATIC
+  src/config/config.cpp
+  ${HEAT_SOLVER_CORE_CUDA_SOURCES}
 )
 
 target_include_directories(heat_solver_core PUBLIC src)
@@ -40,11 +59,16 @@ endif()
 
 if(NOT HEAT_SOLVER_CUDA)
   set_source_files_properties(
-    src/grid/grid.cu
-    src/simulation/simulation.cu
-    src/integrator/integrator.cu
+    ${HEAT_SOLVER_CUDA_EXTENSION_SOURCES}
     PROPERTIES LANGUAGE CXX
   )
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_source_files_properties(
+      ${HEAT_SOLVER_CUDA_EXTENSION_SOURCES}
+      PROPERTIES COMPILE_OPTIONS "-x;c++"
+    )
+  endif()
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -117,29 +141,23 @@ target_link_libraries(heat_solver PRIVATE heat_solver_core)
 
 enable_testing()
 
-add_executable(test_physics tests/physics.cpp)
-target_link_libraries(test_physics PRIVATE heat_solver_core)
-add_test(NAME physics COMMAND test_physics)
+function(add_heat_solver_test test_source)
+  get_filename_component(test_name "${test_source}" NAME_WE)
+  add_executable(test_${test_name} ${test_source})
+  target_link_libraries(test_${test_name} PRIVATE heat_solver_core)
+  add_test(NAME ${test_name} COMMAND test_${test_name} ${ARGN})
+  if(HEAT_SOLVER_CUDA)
+    set_tests_properties(${test_name} PROPERTIES SKIP_RETURN_CODE 77)
+  endif()
+endfunction()
 
-add_executable(test_neumann tests/neumann.cpp)
-target_link_libraries(test_neumann PRIVATE heat_solver_core)
-add_test(NAME neumann COMMAND test_neumann)
-
-add_executable(test_config tests/config.cpp)
-target_link_libraries(test_config PRIVATE heat_solver_core)
-add_test(NAME config COMMAND test_config)
-
-add_executable(test_aligned_soa tests/aligned_soa.cpp)
-target_link_libraries(test_aligned_soa PRIVATE heat_solver_core)
-add_test(NAME aligned_soa COMMAND test_aligned_soa)
-
-add_executable(test_initialization tests/initialization.cpp)
-target_link_libraries(test_initialization PRIVATE heat_solver_core)
-add_test(NAME initialization COMMAND test_initialization)
-
-add_executable(test_convergence_order tests/convergence_order.cpp)
-target_link_libraries(test_convergence_order PRIVATE heat_solver_core)
-add_test(NAME convergence_order COMMAND test_convergence_order)
+add_heat_solver_test(tests/physics.cu)
+add_heat_solver_test(tests/neumann.cu)
+add_heat_solver_test(tests/config.cu)
+add_heat_solver_test(tests/aligned_soa.cu)
+add_heat_solver_test(tests/initialization.cu)
+add_heat_solver_test(tests/convergence_order.cu)
+add_heat_solver_test(tests/convergence.cu --nx 16 --ny 16 --nz 16 --steps 2 --output-interval 0)
 
 add_test(NAME invalid_nx COMMAND heat_solver --nx 2 --steps 0 --output-interval 0)
 set_tests_properties(invalid_nx PROPERTIES WILL_FAIL TRUE)
@@ -150,5 +168,5 @@ set_tests_properties(invalid_alpha PROPERTIES WILL_FAIL TRUE)
 add_test(NAME invalid_dx COMMAND heat_solver --dx 0 --steps 0 --output-interval 0)
 set_tests_properties(invalid_dx PROPERTIES WILL_FAIL TRUE)
 
-add_executable(convergence_probe tests/convergence.cpp)
+add_executable(convergence_probe tests/convergence.cu)
 target_link_libraries(convergence_probe PRIVATE heat_solver_core)

@@ -1,5 +1,6 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
+#include "cuda_test_guard.cuh"
 
 #include <cmath>
 #include <cstdio>
@@ -22,6 +23,8 @@ std::vector<Real> field_snapshot(const Grid& grid) {
 } // namespace
 
 int main() {
+  HEAT_SOLVER_SKIP_CUDA_TEST_IF_UNAVAILABLE();
+
   Config cfg{};
   cfg.nx = cfg.ny = cfg.nz = 32;
   cfg.dx = cfg.dy = cfg.dz = static_cast<Real>(1.0);

@@ -48,3 +48,19 @@ jobs:
 
       - name: Build
         run: cmake --build build
+
+      - name: List registered tests
+        run: ctest --test-dir build -N
+
+      - name: Check for CUDA-capable GPU
+        id: cuda-gpu
+        run: |
+          if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test when a CUDA-capable GPU is available
+        if: steps.cuda-gpu.outputs.available == 'true'
+        run: ctest --test-dir build --output-on-failure

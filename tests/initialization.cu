@@ -1,5 +1,6 @@
 #include "config/config.hpp"
 #include "simulation/simulation.hpp"
+#include "cuda_test_guard.cuh"
 #include "utilities/helpers.cuh"
 
 #include <algorithm>
@@ -24,6 +25,8 @@ bool nearly_equal(Real actual, Real expected) {
 } // namespace
 
 int main() {
+  HEAT_SOLVER_SKIP_CUDA_TEST_IF_UNAVAILABLE();
+
   Config cfg{};
   cfg.nx = 17;
   cfg.ny = 19;

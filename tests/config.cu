@@ -1,4 +1,5 @@
 #include "config/config.hpp"
+#include "cuda_test_guard.cuh"
 
 #include <vector>
 
@@ -15,6 +16,8 @@ Config parse(std::vector<const char*> args) {
 } // namespace
 
 int main() {
+  HEAT_SOLVER_SKIP_CUDA_TEST_IF_UNAVAILABLE();
+
   // no arguments leaves the compile-time defaults untouched
   {
     const Config cfg{parse({})};
