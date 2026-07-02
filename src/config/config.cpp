@@ -73,10 +73,10 @@ Config Config::parse(int argc, char** argv) {
         std::exit(1);
       }
     }
-    else if (flag == "--alpha") { cfg.alpha = parse_number<Real>(flag, value); }
-    else if (flag == "--dx") { cfg.dx = parse_number<Real>(flag, value); }
-    else if (flag == "--dy") { cfg.dy = parse_number<Real>(flag, value); }
-    else if (flag == "--dz") { cfg.dz = parse_number<Real>(flag, value); }
+    else if (flag == "--alpha") { cfg.alpha = parse_number<real_t>(flag, value); }
+    else if (flag == "--dx") { cfg.dx = parse_number<real_t>(flag, value); }
+    else if (flag == "--dy") { cfg.dy = parse_number<real_t>(flag, value); }
+    else if (flag == "--dz") { cfg.dz = parse_number<real_t>(flag, value); }
     else {
       std::cerr << "unknown option: " << flag << '\n';
       print_usage();
@@ -87,10 +87,10 @@ Config Config::parse(int argc, char** argv) {
   require(cfg.nx >= 3, "--nx must be at least 3");
   require(cfg.ny >= 3, "--ny must be at least 3");
   require(cfg.nz >= 3, "--nz must be at least 3");
-  require(std::isfinite(cfg.alpha) && cfg.alpha > static_cast<Real>(0), "--alpha must be positive");
-  require(std::isfinite(cfg.dx) && cfg.dx > static_cast<Real>(0), "--dx must be positive");
-  require(std::isfinite(cfg.dy) && cfg.dy > static_cast<Real>(0), "--dy must be positive");
-  require(std::isfinite(cfg.dz) && cfg.dz > static_cast<Real>(0), "--dz must be positive");
+  require(std::isfinite(cfg.alpha) && cfg.alpha > static_cast<real_t>(0), "--alpha must be positive");
+  require(std::isfinite(cfg.dx) && cfg.dx > static_cast<real_t>(0), "--dx must be positive");
+  require(std::isfinite(cfg.dy) && cfg.dy > static_cast<real_t>(0), "--dy must be positive");
+  require(std::isfinite(cfg.dz) && cfg.dz > static_cast<real_t>(0), "--dz must be positive");
 
   cfg.dt = stable_dt(cfg.alpha, cfg.dx, cfg.dy, cfg.dz);
 

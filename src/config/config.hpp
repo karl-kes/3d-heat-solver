@@ -16,19 +16,19 @@ struct Config {
   std::size_t ny{64};
   std::size_t nz{64};
 
-  Real dx{static_cast<Real>(1.0)};
-  Real dy{static_cast<Real>(1.0)};
-  Real dz{static_cast<Real>(1.0)};
+  real_t dx{static_cast<real_t>(1.0)};
+  real_t dy{static_cast<real_t>(1.0)};
+  real_t dz{static_cast<real_t>(1.0)};
 
-  Real alpha{static_cast<Real>(1.0)};
-  Real dt{stable_dt(alpha, dx, dy, dz)};
+  real_t alpha{static_cast<real_t>(1.0)};
+  real_t dt{stable_dt(alpha, dx, dy, dz)};
 
-  static constexpr Real stable_dt(Real alpha, Real dx, Real dy, Real dz) {
-    return static_cast<Real>(0.85) / (
-      static_cast<Real>(2.0) * alpha *
-      (static_cast<Real>(1.0)/(dx*dx) +
-       static_cast<Real>(1.0)/(dy*dy) +
-       static_cast<Real>(1.0)/(dz*dz))
+  static constexpr real_t stable_dt(real_t alpha, real_t dx, real_t dy, real_t dz) {
+    return static_cast<real_t>(0.85) / (
+      static_cast<real_t>(2.0) * alpha *
+      (static_cast<real_t>(1.0)/(dx*dx) +
+       static_cast<real_t>(1.0)/(dy*dy) +
+       static_cast<real_t>(1.0)/(dz*dz))
     );
   }
 

@@ -18,7 +18,7 @@ __global__
 void gpuBoundaryXFacesKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u_new
+  real_t* RESTRICT u_new
 ) {
   const std::size_t j{blockIdx.x * blockDim.x + threadIdx.x + 1};
   const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y + 1};
@@ -38,7 +38,7 @@ __global__
 void gpuBoundaryYFacesKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u_new
+  real_t* RESTRICT u_new
 ) {
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
   const std::size_t k{blockIdx.y * blockDim.y + threadIdx.y + 1};
@@ -58,7 +58,7 @@ __global__
 void gpuBoundaryZFacesKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u_new
+  real_t* RESTRICT u_new
 ) {
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
   const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
@@ -78,10 +78,10 @@ __global__
 void gpuIntegrateGridKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real inv_dx_sq, Real inv_dy_sq, Real inv_dz_sq,
-  Real alpha_dt,
-  const Real* RESTRICT u_old,
-  Real* RESTRICT u_new
+  real_t inv_dx_sq, real_t inv_dy_sq, real_t inv_dz_sq,
+  real_t alpha_dt,
+  const real_t* RESTRICT u_old,
+  real_t* RESTRICT u_new
 ) {
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x + 1};
   const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y + 1};
@@ -100,10 +100,10 @@ void gpuIntegrateGridKernel(
 
   const std::size_t point{i + p_nx * (j + p_ny * k)};
 
-  const Real laplacian{
-    (u_old[x_low] - static_cast<Real>(2.0) * u_old[point] + u_old[x_high]) * inv_dx_sq +
-    (u_old[y_low] - static_cast<Real>(2.0) * u_old[point] + u_old[y_high]) * inv_dy_sq +
-    (u_old[z_low] - static_cast<Real>(2.0) * u_old[point] + u_old[z_high]) * inv_dz_sq
+  const real_t laplacian{
+    (u_old[x_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[x_high]) * inv_dx_sq +
+    (u_old[y_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[y_high]) * inv_dy_sq +
+    (u_old[z_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[z_high]) * inv_dz_sq
   };
 
   u_new[point] = u_old[point] + alpha_dt * laplacian;
@@ -112,7 +112,7 @@ void gpuIntegrateGridKernel(
 void cpuBoundaryConditionKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u_new
+  real_t* RESTRICT u_new
 ) {
   ASSUME_ALIGNED(u_new, SIMD_BYTES);
 
@@ -165,10 +165,10 @@ void cpuBoundaryConditionKernel(
 void cpuIntegrateGridKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real inv_dx_sq, Real inv_dy_sq, Real inv_dz_sq,
-  Real alpha_dt,
-  const Real* RESTRICT u_old,
-  Real* RESTRICT u_new
+  real_t inv_dx_sq, real_t inv_dy_sq, real_t inv_dz_sq,
+  real_t alpha_dt,
+  const real_t* RESTRICT u_old,
+  real_t* RESTRICT u_new
 ) {
   ASSUME_ALIGNED(u_new, SIMD_BYTES);
   ASSUME_ALIGNED(u_old, SIMD_BYTES);
@@ -190,10 +190,10 @@ void cpuIntegrateGridKernel(
 
         const std::size_t point{i + p_nx * (j + p_ny * k)};
 
-        const Real laplacian{
-          (u_old[x_low] - static_cast<Real>(2.0) * u_old[point] + u_old[x_high]) * inv_dx_sq +
-          (u_old[y_low] - static_cast<Real>(2.0) * u_old[point] + u_old[y_high]) * inv_dy_sq +
-          (u_old[z_low] - static_cast<Real>(2.0) * u_old[point] + u_old[z_high]) * inv_dz_sq
+        const real_t laplacian{
+          (u_old[x_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[x_high]) * inv_dx_sq +
+          (u_old[y_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[y_high]) * inv_dy_sq +
+          (u_old[z_low] - static_cast<real_t>(2.0) * u_old[point] + u_old[z_high]) * inv_dz_sq
         };
 
         u_new[point] = u_old[point] + alpha_dt * laplacian;

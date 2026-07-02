@@ -6,13 +6,13 @@
 #include <type_traits>
 
 #if defined(HEAT_SOLVER_PRECISION_DOUBLE)
-using Real = double;
+using real_t = double;
 #else
-using Real = float;
+using real_t = float;
 #endif
 
 CUDA_CALLABLE
-inline Real real_exp(Real value) {
+inline real_t real_t_exp(real_t value) {
 #if defined(__CUDACC__)
   #if defined(HEAT_SOLVER_PRECISION_DOUBLE)
     return exp(value);
@@ -25,7 +25,7 @@ inline Real real_exp(Real value) {
 }
 
 CUDA_CALLABLE
-inline Real real_cos(Real value) {
+inline real_t real_t_cos(real_t value) {
 #if defined(__CUDACC__)
   #if defined(HEAT_SOLVER_PRECISION_DOUBLE)
     return cos(value);

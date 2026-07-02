@@ -20,7 +20,7 @@ __global__
 void gpuInitializeGaussianKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u
+  real_t* RESTRICT u
 ) {
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
   const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
@@ -28,29 +28,29 @@ void gpuInitializeGaussianKernel(
 
   if (i >= nx || j >= ny || k >= nz) { return; }
 
-  const Real center_x{static_cast<Real>(0.5) * static_cast<Real>(nx - 1)};
-  const Real center_y{static_cast<Real>(0.5) * static_cast<Real>(ny - 1)};
-  const Real center_z{static_cast<Real>(0.5) * static_cast<Real>(nz - 1)};
+  const real_t center_x{static_cast<real_t>(0.5) * static_cast<real_t>(nx - 1)};
+  const real_t center_y{static_cast<real_t>(0.5) * static_cast<real_t>(ny - 1)};
+  const real_t center_z{static_cast<real_t>(0.5) * static_cast<real_t>(nz - 1)};
 
-  const Real amplitude{static_cast<Real>(1.0)};
-  const Real sigma{static_cast<Real>(0.1) * static_cast<Real>(nx)};
-  const Real two_sigma_sq{static_cast<Real>(2.0) * sigma * sigma};
-  const Real inv_two_sig_sq{static_cast<Real>(1.0) / two_sigma_sq};
+  const real_t amplitude{static_cast<real_t>(1.0)};
+  const real_t sigma{static_cast<real_t>(0.1) * static_cast<real_t>(nx)};
+  const real_t two_sigma_sq{static_cast<real_t>(2.0) * sigma * sigma};
+  const real_t inv_two_sig_sq{static_cast<real_t>(1.0) / two_sigma_sq};
 
-  const Real rx{static_cast<Real>(i) - center_x};
-  const Real ry{static_cast<Real>(j) - center_y};
-  const Real rz{static_cast<Real>(k) - center_z};
-  const Real r_sq{rx*rx + ry*ry + rz*rz};
+  const real_t rx{static_cast<real_t>(i) - center_x};
+  const real_t ry{static_cast<real_t>(j) - center_y};
+  const real_t rz{static_cast<real_t>(k) - center_z};
+  const real_t r_sq{rx*rx + ry*ry + rz*rz};
 
   const std::size_t point{i + p_nx * (j + p_ny * k)};
-  u[point] = amplitude * real_exp(-r_sq * inv_two_sig_sq);
+  u[point] = amplitude * real_t_exp(-r_sq * inv_two_sig_sq);
 }
 
 __global__
 void gpuInitializeCosineKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u
+  real_t* RESTRICT u
 ) {
   const std::size_t i{blockIdx.x * blockDim.x + threadIdx.x};
   const std::size_t j{blockIdx.y * blockDim.y + threadIdx.y};
@@ -65,18 +65,18 @@ void gpuInitializeCosineKernel(
   void cpuInitializeGaussianKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u
+  real_t* RESTRICT u
 ) {
   ASSUME_ALIGNED(u, SIMD_BYTES);
 
-  const Real center_x{static_cast<Real>(0.5) * static_cast<Real>(nx - 1)};
-  const Real center_y{static_cast<Real>(0.5) * static_cast<Real>(ny - 1)};
-  const Real center_z{static_cast<Real>(0.5) * static_cast<Real>(nz - 1)};
+  const real_t center_x{static_cast<real_t>(0.5) * static_cast<real_t>(nx - 1)};
+  const real_t center_y{static_cast<real_t>(0.5) * static_cast<real_t>(ny - 1)};
+  const real_t center_z{static_cast<real_t>(0.5) * static_cast<real_t>(nz - 1)};
 
-  const Real amplitude{static_cast<Real>(1.0)};
-  const Real sigma{static_cast<Real>(0.1) * static_cast<Real>(nx)};
-  const Real two_sigma_sq{static_cast<Real>(2.0) * sigma * sigma};
-  const Real inv_two_sig_sq{static_cast<Real>(1.0) / two_sigma_sq};
+  const real_t amplitude{static_cast<real_t>(1.0)};
+  const real_t sigma{static_cast<real_t>(0.1) * static_cast<real_t>(nx)};
+  const real_t two_sigma_sq{static_cast<real_t>(2.0) * sigma * sigma};
+  const real_t inv_two_sig_sq{static_cast<real_t>(1.0) / two_sigma_sq};
 
   #pragma omp parallel for collapse(2)
   for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
@@ -84,13 +84,13 @@ void gpuInitializeCosineKernel(
 
       #pragma omp simd
       for (std::size_t i = 0; i < nx; ++i) {
-        const Real rx{static_cast<Real>(i) - center_x};
-        const Real ry{static_cast<Real>(j) - center_y};
-        const Real rz{static_cast<Real>(k) - center_z};
-        const Real r_sq{rx*rx + ry*ry + rz*rz};
+        const real_t rx{static_cast<real_t>(i) - center_x};
+        const real_t ry{static_cast<real_t>(j) - center_y};
+        const real_t rz{static_cast<real_t>(k) - center_z};
+        const real_t r_sq{rx*rx + ry*ry + rz*rz};
 
         const std::size_t point{i + p_nx * (j + p_ny * k)};
-        u[point] = amplitude * real_exp(-r_sq * inv_two_sig_sq);
+        u[point] = amplitude * real_t_exp(-r_sq * inv_two_sig_sq);
       }
     }
   }
@@ -99,7 +99,7 @@ void gpuInitializeCosineKernel(
 void cpuInitializeCosineKernel(
   std::size_t nx, std::size_t ny, std::size_t nz,
   std::size_t p_nx, std::size_t p_ny,
-  Real* RESTRICT u
+  real_t* RESTRICT u
 ) {
   ASSUME_ALIGNED(u, SIMD_BYTES);
 
@@ -107,8 +107,8 @@ void cpuInitializeCosineKernel(
   for (std::ptrdiff_t k = 0; k < static_cast<std::ptrdiff_t>(nz); ++k) {
     for (std::ptrdiff_t j = 0; j < static_cast<std::ptrdiff_t>(ny); ++j) {
 
-      const Real cy{cosine_mode(static_cast<std::size_t>(j), ny)};
-      const Real cz{cosine_mode(static_cast<std::size_t>(k), nz)};
+      const real_t cy{cosine_mode(static_cast<std::size_t>(j), ny)};
+      const real_t cz{cosine_mode(static_cast<std::size_t>(k), nz)};
 
       #pragma omp simd
       for (std::size_t i = 0; i < nx; ++i) {

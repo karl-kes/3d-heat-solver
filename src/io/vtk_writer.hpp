@@ -64,17 +64,17 @@ inline void write(const Grid& grid, std::size_t step) {
       << "ORIGIN 0 0 0\n"
       << "SPACING " << grid.dx() << ' ' << grid.dy() << ' ' << grid.dz() << '\n'
       << "POINT_DATA " << nx * ny * nz << '\n'
-      << "SCALARS temperature " << (sizeof(Real) == sizeof(float) ? "float" : "double") << " 1\n"
+      << "SCALARS temperature " << (sizeof(real_t) == sizeof(float) ? "float" : "double") << " 1\n"
       << "LOOKUP_TABLE default\n";
 
   const std::size_t padded_total{grid.total_size()};
-  std::vector<Real> host_field(padded_total);
+  std::vector<real_t> host_field(padded_total);
   grid.copy_to_host(host_field.data());
-  const Real* u{host_field.data()};
+  const real_t* u{host_field.data()};
 
   for (std::size_t k{}; k < nz; ++k) {
     for (std::size_t j{}; j < ny; ++j) {
-      if constexpr (sizeof(Real) == sizeof(float)) {
+      if constexpr (sizeof(real_t) == sizeof(float)) {
         std::vector<uint32_t> row(nx);
         for (std::size_t i{}; i < nx; ++i) {
           const float val{static_cast<float>(u[grid.idx(i, j, k)])};
