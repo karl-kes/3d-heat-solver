@@ -1,0 +1,84 @@
+name: GPU Simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so the build-cuda
+# job only builds the CUDA backend. This builds it again and runs the whole
+# ctest suite on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing, so it complements real-GPU testing and
+# does not replace it.
+#
+# The CUDA tests exit with 77 (ctest: Skipped) when no device is found, so the
+# job fails if any test is skipped or not run, and if no simulated device was
+# initialized. Only the float build is run here. tests/convergence.cu only
+# prints its results, so it is run but nothing is checked beyond its exit code.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ctest:
+    name: ctest (CUDA 13.0 and simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libomp-dev
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@deff5781e8adfd83dec98dd5242dcbc96a564773 # v0.1.10
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      # The CMakeLists.txt only picks "native" when no architecture is given.
+      # 90-virtual embeds PTX only, which the simulator runs, and the simulator
+      # needs a shared CUDA runtime.
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DHEAT_SOLVER_ENABLE_CUDA=ON \
+            -DHEAT_SOLVER_PRECISION=float \
+            -DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.0/bin/nvcc \
+            -DCMAKE_CUDA_ARCHITECTURES=90-virtual \
+            -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared
+
+      - name: Build
+        run: cmake --build build -j3
+
+      # A wrong-architecture run can print a VirtualGPU error and still exit 0,
+      # so the output is searched for device problems as well. The CUDA tests
+      # print "CUDA test skipped" and exit 77 when there is no device.
+      - name: Test
+        working-directory: build
+        run: |
+          vgpu run --counters ctest --output-on-failure -V > ../ctest.log 2>&1 || { tail -n 150 ../ctest.log; exit 1; }
+          grep -E "virtual GPU platform initialized|Test +#|tests passed|Skipped|Not Run" ../ctest.log
+          grep -q "virtual GPU platform initialized: 1 x nvidia/h100" ../ctest.log
+          if grep -qiE "VirtualGPU error|no device|no CUDA-capable|CUDA test skipped|\*\*\*Skipped|Not Run|tests were not run" ../ctest.log; then
+            echo "::error::the run reported a device problem or a skipped test"; exit 1
+          fi
+          grep -q "100% tests passed, 0 tests failed out of 10" ../ctest.log
+          # The simulator's per-launch counters show that the solver kernels ran.
+          for k in gpuInitializeGaussianKernel gpuIntegrateGridKernel gpuBoundaryXFacesKernel; do
+            echo "$k launches: $(grep -c "\[vgpu\]\[counters\].*$k" ../ctest.log)"
+            grep -q "\[vgpu\]\[counters\].*$k" ../ctest.log
+          done
